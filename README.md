@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Harborline
 
-## Getting Started
+Booking and manifest software for ferry and freight operators. Passengers, vehicles and cargo on one
+booking; configurable item types, prices and taxes per operator; a ticket desk that keeps working offline.
 
-First, run the development server:
+## Run it locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run db:start      # embedded Postgres on :54320 (data in .pgdata)
+npm run db:migrate    # prisma migrate deploy + app-role grants
+npm run seed          # demo operator: demo@harborline.test / demo-password-1
+npm run dev           # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Checks
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test              # 49 tests against a throwaway Postgres (isolation, bookings, sync, auth)
+npm run typecheck && npm run lint && npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How it is built
 
-## Learn More
+- **Multi-tenant**: one database, `tenant_id` on every table, enforced by Postgres row-level security.
+  The app connects as a role that cannot bypass it; `withTenant()` pins the operator per transaction.
+- **Data access** is Prisma (`prisma/schema.prisma`). RLS policies, the `lower(email)` index and the app role's
+  column grants can't be expressed in Prisma, so they live as raw SQL in `prisma/migrations/0_init` and
+  `src/db/migrate.ts`. After changing the schema: `npx prisma migrate dev --create-only`, then hand-add SQL
+  for any new tenant table (`ENABLE ROW LEVEL SECURITY` + a `*_tenant_isolation` policy).
+- **Money** is integer minor units plus a currency code. Tax is basis points, inclusive or exclusive.
+- **Capacity** is checked under a row lock on the voyage, so concurrent sales cannot oversell online.
+- **Offline**: the ticket desk (`/app/desk`) queues sales in IndexedDB and uploads them to `/api/sync`.
+  Each sale carries an id, so retries never double-book. Sales that clash with live data (sailing filled up,
+  price changed) are kept and flagged for staff in the Review queue.
+- **Auth**: signed session cookie; permissions are re-read from the database on every request.
 
-To learn more about Next.js, take a look at the following resources:
+## Before going live
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Set the three variables in `.env.example`, run migrations with the owner connection, and put the app
+behind HTTPS. Not built yet: online payments, a customer-facing booking page, email/SMS, refunds,
+team and role management screens (the data model supports them).
+# freight-saas
