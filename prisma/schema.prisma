@@ -1,0 +1,407 @@
+// Multi-tenancy: every operator-owned table carries tenant_id and a row-level-security policy that compares it
+// with the `app.tenant_id` setting. Prisma cannot express policies, so they live in the hand-edited SQL of the
+// initial migration (prisma/migrations). The app connects as a role without BYPASSRLS and sets the setting per
+// transaction (see src/db/index.ts), so a query that forgets its tenant filter returns nothing instead of leaking.
+//
+// Status-like columns are plain text here; their allowed values are the unions in src/lib/domain.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String   @unique
+  baseCurrency String   @default("USD") @map("base_currency")
+  locale       String   @default("en")
+  timeZone     String   @default("UTC") @map("time_zone")
+  plan         String   @default("starter")
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roles           Role[]
+  memberships     Membership[]
+  settings        TenantSetting[]
+  counters        Counter[]
+  customers       Customer[]
+  locations       Location[]
+  vessels         Vessel[]
+  voyages         Voyage[]
+  itemTypes       ItemType[]
+  priceRules      PriceRule[]
+  taxRules        TaxRule[]
+  bookings        Booking[]
+  bookingLines    BookingLine[]
+  manifestEntries ManifestEntry[]
+  invoices        Invoice[]
+  payments        Payment[]
+  syncOperations  SyncOperation[]
+  auditLogs       AuditLog[]
+
+  @@map("tenants")
+}
+
+/// People are global (one person can work for several operators); access is granted by memberships.
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  name         String
+  phone        String?
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  memberships  Membership[]
+  bookings     Booking[]
+  payments     Payment[]
+  auditLogs    AuditLog[]
+
+  // The unique index users_email_lower_idx on lower(email) is created in the migration SQL.
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String
+  permissions String[] @default([])
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships Membership[]
+
+  @@unique([tenantId, name], map: "roles_tenant_name_idx")
+  @@map("roles")
+}
+
+model Membership {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([tenantId, userId], map: "memberships_tenant_user_idx")
+  @@map("memberships")
+}
+
+model TenantSetting {
+  tenantId String @map("tenant_id") @db.Uuid
+  key      String
+  value    Json
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key], map: "tenant_settings_tenant_id_key_pk")
+  @@map("tenant_settings")
+}
+
+/// Per-tenant sequential numbers (booking, invoice and voyage numbers).
+model Counter {
+  tenantId String @map("tenant_id") @db.Uuid
+  key      String
+  value    Int    @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key], map: "counters_tenant_id_key_pk")
+  @@map("counters")
+}
+
+model Customer {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  idType    String?  @map("id_type")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@index([tenantId, name], map: "customers_tenant_name_idx")
+  @@map("customers")
+}
+
+model Location {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  code      String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant              Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voyagesFrom         Voyage[]    @relation("VoyageOrigin")
+  voyagesTo           Voyage[]    @relation("VoyageDestination")
+  priceRulesFrom      PriceRule[] @relation("PriceRuleOrigin")
+  priceRulesTo        PriceRule[] @relation("PriceRuleDestination")
+
+  @@unique([tenantId, code], map: "locations_tenant_code_idx")
+  @@map("locations")
+}
+
+model Vessel {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  name       String
+  /// Capacity in units per item kind, e.g. {PASSENGER: 120, VEHICLE: 18, CARGO: 40}.
+  capacities Json
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voyages Voyage[]
+
+  @@unique([tenantId, name], map: "vessels_tenant_name_idx")
+  @@map("vessels")
+}
+
+model Voyage {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  voyageNo      Int       @map("voyage_no")
+  vesselId      String    @map("vessel_id") @db.Uuid
+  originId      String    @map("origin_id") @db.Uuid
+  destinationId String    @map("destination_id") @db.Uuid
+  departureAt   DateTime  @map("departure_at") @db.Timestamptz(6)
+  arrivalAt     DateTime? @map("arrival_at") @db.Timestamptz(6)
+  status        String    @default("SCHEDULED")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vessel          Vessel          @relation(fields: [vesselId], references: [id])
+  origin          Location        @relation("VoyageOrigin", fields: [originId], references: [id])
+  destination     Location        @relation("VoyageDestination", fields: [destinationId], references: [id])
+  bookings        Booking[]
+  manifestEntries ManifestEntry[]
+
+  @@unique([tenantId, voyageNo], map: "voyages_tenant_no_idx")
+  @@index([tenantId, departureAt], map: "voyages_tenant_departure_idx")
+  @@map("voyages")
+}
+
+model ItemType {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  kind          String
+  name          String
+  /// Operator-defined extra fields captured on each booking line.
+  fieldSchema   Json     @default("[]") @map("field_schema")
+  /// How many units of the vessel's capacity for this kind one item uses.
+  capacityUnits Int      @default(1) @map("capacity_units")
+  sortOrder     Int      @default(0) @map("sort_order")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  priceRules   PriceRule[]
+  bookingLines BookingLine[]
+
+  @@unique([tenantId, kind, name], map: "item_types_tenant_name_idx")
+  @@map("item_types")
+}
+
+model PriceRule {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  itemTypeId    String   @map("item_type_id") @db.Uuid
+  /// Null origin and destination means "any route"; a route-specific rule wins over it.
+  originId      String?  @map("origin_id") @db.Uuid
+  destinationId String?  @map("destination_id") @db.Uuid
+  unitPrice     Int      @map("unit_price")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  itemType    ItemType  @relation(fields: [itemTypeId], references: [id], onDelete: Cascade)
+  origin      Location? @relation("PriceRuleOrigin", fields: [originId], references: [id])
+  destination Location? @relation("PriceRuleDestination", fields: [destinationId], references: [id])
+
+  @@index([tenantId, itemTypeId], map: "price_rules_tenant_item_idx")
+  @@map("price_rules")
+}
+
+model TaxRule {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// Basis points: 1200 = 12%.
+  rateBp    Int      @map("rate_bp")
+  appliesTo String   @default("ALL") @map("applies_to")
+  /// Inclusive tax is already part of the listed price; exclusive tax is added on top.
+  inclusive Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tax_rules")
+}
+
+model Booking {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  bookingNo     Int      @map("booking_no")
+  voyageId      String   @map("voyage_id") @db.Uuid
+  customerId    String?  @map("customer_id") @db.Uuid
+  contactName   String   @map("contact_name")
+  contactPhone  String?  @map("contact_phone")
+  status        String   @default("CONFIRMED")
+  reviewReason  String?  @map("review_reason")
+  currency      String
+  subtotal      Int
+  taxTotal      Int      @map("tax_total")
+  total         Int
+  source        String   @default("ONLINE")
+  /// Set by the offline queue; makes retries safe.
+  clientOpId    String?  @map("client_op_id")
+  notes         String?
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voyage   Voyage        @relation(fields: [voyageId], references: [id])
+  customer Customer?     @relation(fields: [customerId], references: [id])
+  creator  User?         @relation(fields: [createdBy], references: [id])
+  lines    BookingLine[]
+  invoice  Invoice?
+
+  @@unique([tenantId, bookingNo], map: "bookings_tenant_no_idx")
+  @@unique([tenantId, clientOpId], map: "bookings_tenant_client_op_idx")
+  @@index([tenantId, voyageId], map: "bookings_tenant_voyage_idx")
+  @@index([tenantId, status], map: "bookings_tenant_status_idx")
+  @@map("bookings")
+}
+
+model BookingLine {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  bookingId     String @map("booking_id") @db.Uuid
+  itemTypeId    String @map("item_type_id") @db.Uuid
+  kind          String
+  description   String
+  quantity      Int
+  unitPrice     Int    @map("unit_price")
+  subtotal      Int
+  taxAmount     Int    @map("tax_amount")
+  total         Int
+  /// Capacity units this line uses in total (item type units x quantity).
+  capacityUnits Int    @map("capacity_units")
+  attributes    Json   @default("{}")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking       Booking        @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  itemType      ItemType       @relation(fields: [itemTypeId], references: [id])
+  manifestEntry ManifestEntry?
+
+  @@index([tenantId, bookingId], map: "booking_lines_tenant_booking_idx")
+  @@map("booking_lines")
+}
+
+model ManifestEntry {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  voyageId      String    @map("voyage_id") @db.Uuid
+  bookingLineId String    @unique(map: "manifest_entries_booking_line_id_unique") @map("booking_line_id") @db.Uuid
+  status        String    @default("PENDING")
+  loadedAt      DateTime? @map("loaded_at") @db.Timestamptz(6)
+  unloadedAt    DateTime? @map("unloaded_at") @db.Timestamptz(6)
+  deliveredAt   DateTime? @map("delivered_at") @db.Timestamptz(6)
+  receivedBy    String?   @map("received_by")
+  note          String?
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  voyage      Voyage      @relation(fields: [voyageId], references: [id])
+  bookingLine BookingLine @relation(fields: [bookingLineId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, voyageId], map: "manifest_tenant_voyage_idx")
+  @@map("manifest_entries")
+}
+
+model Invoice {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  invoiceNo Int      @map("invoice_no")
+  bookingId String   @unique(map: "invoices_booking_id_unique") @map("booking_id") @db.Uuid
+  currency  String
+  subtotal  Int
+  taxTotal  Int      @map("tax_total")
+  total     Int
+  status    String   @default("UNPAID")
+  issuedAt  DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking  Booking   @relation(fields: [bookingId], references: [id])
+  payments Payment[]
+
+  @@unique([tenantId, invoiceNo], map: "invoices_tenant_no_idx")
+  @@map("invoices")
+}
+
+model Payment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  invoiceId  String   @map("invoice_id") @db.Uuid
+  method     String
+  amount     Int
+  reference  String?
+  receivedBy String?  @map("received_by") @db.Uuid
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice  Invoice @relation(fields: [invoiceId], references: [id])
+  receiver User?   @relation(fields: [receivedBy], references: [id])
+
+  @@index([tenantId, invoiceId], map: "payments_tenant_invoice_idx")
+  @@map("payments")
+}
+
+/// Idempotency ledger: one row per operation a device has ever sent.
+model SyncOperation {
+  tenantId    String   @map("tenant_id") @db.Uuid
+  clientOpId  String   @map("client_op_id")
+  deviceId    String   @map("device_id")
+  payloadHash String   @map("payload_hash")
+  /// APPLIED | NEEDS_REVIEW | REJECTED
+  status      String
+  result      Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, clientOpId], map: "sync_operations_tenant_id_client_op_id_pk")
+  @@map("sync_operations")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorId], references: [id])
+
+  @@index([tenantId, createdAt], map: "audit_tenant_created_idx")
+  @@map("audit_logs")
+}

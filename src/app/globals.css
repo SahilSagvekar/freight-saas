@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. A calm maritime palette: deep navy chrome, an ocean-blue brand colour, and
+ * restrained status colours. Everything in the UI draws from these, so a re-brand is one edit.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ink: #0f1b2d;
+  --color-muted: #566579;
+  --color-subtle: #8492a6;
+  --color-canvas: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-line: #e3e8ef;
+  --color-line-strong: #ccd5e0;
+
+  --color-navy-950: #071522;
+  --color-navy-900: #0a2036;
+  --color-navy-800: #112f4d;
+  --color-navy-700: #1b4167;
+
+  --color-brand-50: #eef6fd;
+  --color-brand-100: #d9eafa;
+  --color-brand-200: #b8d7f4;
+  --color-brand-300: #89bdeb;
+  --color-brand-400: #519bdd;
+  --color-brand-500: #2b7bc9;
+  --color-brand-600: #1d62ad;
+  --color-brand-700: #194f8d;
+  --color-brand-800: #194375;
+  --color-brand-900: #183a60;
+
+  --color-ok-50: #ecfdf3;
+  --color-ok-100: #d1fae0;
+  --color-ok-600: #12805a;
+  --color-ok-700: #0e6948;
+  --color-warn-50: #fff8eb;
+  --color-warn-100: #feeccb;
+  --color-warn-600: #b66a07;
+  --color-warn-700: #94540a;
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fde0e0;
+  --color-danger-600: #c62f2f;
+  --color-danger-700: #a12424;
+
+  --shadow-card: 0 1px 2px rgb(15 27 45 / 0.04), 0 1px 3px rgb(15 27 45 / 0.04);
+  --shadow-pop: 0 8px 24px rgb(15 27 45 / 0.12);
+  --radius-card: 0.75rem;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Comfortable tap targets and a visible keyboard focus ring everywhere. */
+:where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-brand-200);
+}
+
+/* Numbers line up in tables and totals. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
 }
