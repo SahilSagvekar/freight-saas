@@ -9,7 +9,7 @@ booking; configurable item types, prices and taxes per operator; a ticket desk t
 npm install
 npm run db:start      # embedded Postgres on :54320 (data in .pgdata)
 npm run db:migrate    # prisma migrate deploy + app-role grants
-npm run seed          # demo operator: demo@harborline.test / demo-password-1
+npm run seed          # DEMO operator with fake data, local use only: demo@harborline.test / demo-password-1
 npm run dev           # http://localhost:3000
 ```
 
@@ -35,9 +35,23 @@ npm run typecheck && npm run lint && npm run build
   price changed) are kept and flagged for staff in the Review queue.
 - **Auth**: signed session cookie; permissions are re-read from the database on every request.
 
-## Before going live
+## Going live
 
-Set the three variables in `.env.example`, run migrations with the owner connection, and put the app
-behind HTTPS. Not built yet: online payments, a customer-facing booking page, email/SMS, refunds,
-team and role management screens (the data model supports them).
+Production and the demo are two separate deployments with two separate databases. Production never holds demo
+data, demo logins or placeholder prices.
+
+1. Set the variables in `.env.example` (`DATABASE_URL`, `ADMIN_DATABASE_URL`, `SESSION_SECRET`, `APP_URL`),
+   run `npm run db:migrate` with the owner connection, and put the app behind HTTPS.
+2. Create each customer with `npm run tenant:create -- --name "Island Ferries" --owner-name "Maya Collins" --email maya@example.com --currency USD --timezone America/Nassau`.
+   It prints a one-time link (valid 72 hours, works once). The owner opens it and chooses their own password.
+   No password is ever chosen or stored by you, and no price list is added unless you pass `--starter`.
+3. The owner signs in, follows the setup checklist on their home page (ports, vessels, prices, first voyage),
+   then adds staff under **Team**. Each new member gets their own one-time link.
+
+The demo (`npm run seed`) refuses to run on any database that holds a real operator, and on a non-local database
+unless `ALLOW_DEMO_SEED=this-is-the-demo-database` is set. Tests refuse to connect to anything except the local
+`freight_test` database.
+
+Not built yet: online payments, a customer-facing booking page, email/SMS (until then, links are handed over by
+you or the owner), refunds, and a custom role editor.
 # freight-saas

@@ -3,6 +3,7 @@ import { adminDb, closeDb } from "@/db";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { signSession, verifySession } from "@/lib/session";
 import { authenticate } from "@/server/credentials";
+import { applySetupToken, describeSetupToken, issueSetupLink } from "@/server/setup-links";
 import { makeTenant } from "./helpers";
 
 afterAll(closeDb);
@@ -56,5 +57,30 @@ describe("rateLimit", () => {
     expect(blocked.allowed).toBe(false);
     expect(blocked.retryAfterSeconds).toBe(59);
     expect(rateLimit(key, 3, 60_000, t0 + 61_000).allowed).toBe(true);
+  });
+});
+
+describe("setup links", () => {
+  it("lets a person choose a password once, and the same link then stops working", async () => {
+    const t = await makeTenant("Setup");
+    const link = await issueSetupLink(t.ownerUserId, "https://app.example.test");
+    const token = new URL(link).searchParams.get("token")!;
+
+    expect(await describeSetupToken(token)).toMatchObject({ email: t.email });
+    expect(await applySetupToken(token, "short")).toMatchObject({ ok: false });
+
+    expect(await applySetupToken(token, "a-brand-new-password")).toMatchObject({ ok: true });
+    expect(await authenticate(t.email, "a-brand-new-password")).toMatchObject({ uid: t.ownerUserId });
+    expect(await authenticate(t.email, t.password)).toBeNull();
+
+    expect(await describeSetupToken(token)).toBeNull();
+    expect(await applySetupToken(token, "another-new-password")).toMatchObject({ ok: false });
+  });
+
+  it("lets only one of two simultaneous uses win", async () => {
+    const t = await makeTenant("Setup");
+    const token = new URL(await issueSetupLink(t.ownerUserId, "https://app.example.test")).searchParams.get("token")!;
+    const results = await Promise.all([applySetupToken(token, "first-password-here"), applySetupToken(token, "second-password-here")]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
   });
 });

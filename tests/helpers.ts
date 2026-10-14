@@ -11,6 +11,7 @@ export async function makeTenant(label = "Operator", overrides: { currency?: str
     name: `${label} ${n}`,
     baseCurrency: overrides.currency ?? "USD",
     owner: { name: `${label} Owner`, email, password: "password-for-tests" },
+    starterCatalog: true, // the starter list is off by default for real operators; these tests rely on it
   });
   return { ...result, email, password: "password-for-tests", name: `${label} ${n}` };
 }

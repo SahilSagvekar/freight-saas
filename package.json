@@ -12,7 +12,9 @@
     "db:stop": "node scripts/local-pg.mjs stop",
     "db:migrate": "tsx src/db/migrate.ts",
     "seed": "tsx scripts/seed.ts",
+    "tenant:create": "tsx scripts/tenant-create.ts",
     "test": "vitest run",
+    "test:unit": "vitest run --config vitest.unit.config.mts",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate"
   },

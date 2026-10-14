@@ -1,20 +1,33 @@
-/** Creates (or refreshes) a demo operator with ports, a vessel, a week of voyages and some bookings. */
-import { adminDb, closeDb, withTenant } from "@/db";
+/**
+ * Creates a DEMO operator (fake ports, boats, voyages and bookings) for local development and the hosted demo.
+ * It refuses to run on a database that holds any real operator, and on a non-local database unless
+ * ALLOW_DEMO_SEED is set, so demo credentials can never end up in live data.
+ */
+import { adminDb, closeDb, LOCAL_ADMIN_URL, withTenant } from "@/db";
+import { DEMO_SEED_FLAG, DEMO_TENANT_SLUG, demoSeedBlockedReason } from "@/lib/live-guard";
 import { createBooking } from "@/server/bookings";
 import { provisionTenant } from "@/server/provision";
 import { createVoyage } from "@/server/voyages";
 
-const EMAIL = "demo@harborline.test";
-const PASSWORD = "demo-password-1";
+const EMAIL = process.env.DEMO_EMAIL ?? "demo@harborline.test";
+const PASSWORD = process.env.DEMO_PASSWORD ?? "demo-password-1";
 
 async function main() {
-  const existing = await adminDb().tenant.findUnique({ where: { slug: "blue-lagoon-ferries" } });
+  const slugs = (await adminDb().tenant.findMany({ select: { slug: true } })).map((t: { slug: string }) => t.slug);
+  const blocked = demoSeedBlockedReason({
+    adminUrl: process.env.ADMIN_DATABASE_URL ?? LOCAL_ADMIN_URL,
+    flag: process.env[DEMO_SEED_FLAG],
+    existingSlugs: slugs,
+  });
+  if (blocked) throw new Error(`Refusing to seed: ${blocked}`);
+
+  const existing = slugs.includes(DEMO_TENANT_SLUG);
   if (existing) {
     console.log("Demo operator already exists.");
   } else {
     const t = await provisionTenant({
       name: "Blue Lagoon Ferries",
-      slug: "blue-lagoon-ferries",
+      slug: DEMO_TENANT_SLUG,
       baseCurrency: "USD",
       owner: { name: "Maya Collins", email: EMAIL, password: PASSWORD },
       starterCatalog: true,

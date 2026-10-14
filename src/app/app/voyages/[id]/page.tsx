@@ -2,6 +2,7 @@ import { ArrowLeft, ClipboardList, Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ManifestButton } from "@/components/app/booking-actions";
+import { VoyageStatusButtons } from "@/components/app/voyage-status-buttons";
 import { StatusBadge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { EmptyState, PageHeader } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { withTenant } from "@/db";
 import { describeAttributes } from "@/lib/attributes";
-import type { FieldDef } from "@/lib/domain";
+import type { FieldDef, VoyageStatus } from "@/lib/domain";
 import { formatDeparture, KIND_LABEL } from "@/lib/format";
 import { can, requirePermission } from "@/server/auth";
 import { getVoyage, voyageManifest } from "@/server/queries";
@@ -34,6 +35,9 @@ export default async function VoyagePage({ params }: PageProps<"/app/voyages/[id
         description={`${formatDeparture(v.departureAt)} · ${v.vesselName}`}
         actions={<><StatusBadge status={v.status} />{can(auth, "booking.create") && (v.status === "SCHEDULED" || v.status === "BOARDING") && <ButtonLink href={`/app/bookings/new?voyage=${v.id}`}><Plus className="size-4" aria-hidden />Add booking</ButtonLink>}</>}
       />
+      {can(auth, "voyage.manage") && (
+        <div className="mb-4"><VoyageStatusButtons voyageId={v.id} status={v.status as VoyageStatus} /></div>
+      )}
       <Card className="mb-6">
         <div className="grid gap-5 p-5 sm:grid-cols-3">
           <CapacityBar label="Passengers" used={v.used.PASSENGER} capacity={v.capacities.PASSENGER} />

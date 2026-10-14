@@ -15,7 +15,8 @@ export type SessionPayload = {
 const DEV_SECRET = "dev-only-secret-change-me-dev-only-secret";
 let warned = false;
 
-function secretKey(): Uint8Array {
+/** The signing key for every token the app issues. Other token kinds (setup links, operator choice) carry a `purpose` claim, which sessions do not. */
+export function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
   if (secret && secret.length >= 32) return new TextEncoder().encode(secret);
   if (process.env.NODE_ENV === "production") {

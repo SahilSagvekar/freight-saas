@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { adminTransaction } from "@/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { DEFAULT_ROLES, type FieldDef, type ItemKind } from "@/lib/domain";
@@ -11,8 +12,12 @@ export type ProvisionInput = {
   baseCurrency?: string;
   locale?: string;
   timeZone?: string;
-  owner: { name: string; email: string; password: string; phone?: string };
-  /** Seed a starter price list so the operator can take a booking straight away. */
+  /**
+   * Leave `password` out for real operators: the account then gets a random password nobody knows, and the owner
+   * chooses their own through a one-time link (see issueSetupLink). A password is only passed by demo seeds and tests.
+   */
+  owner: { name: string; email: string; password?: string; phone?: string };
+  /** Seeds a placeholder price list. Off by default: a real operator enters their own ports, boats and prices. */
   starterCatalog?: boolean;
 };
 
@@ -76,7 +81,7 @@ const STARTER_ITEMS: StarterItem[] = [
  */
 export async function provisionTenant(input: ProvisionInput) {
   const baseCurrency = (input.baseCurrency ?? "USD").toUpperCase();
-  const passwordHash = await hashPassword(input.owner.password);
+  const passwordHash = await hashPassword(input.owner.password ?? randomBytes(32).toString("base64url"));
   const email = input.owner.email.trim().toLowerCase();
   const slug = input.slug ? slugify(input.slug) : slugify(input.name);
 
@@ -114,7 +119,7 @@ export async function provisionTenant(input: ProvisionInput) {
     await setTenantSetting(tx, tenant.id, "bookingPrefix", "BK-");
     await setTenantSetting(tx, tenant.id, "invoicePrefix", "INV-");
 
-    if (input.starterCatalog !== false) {
+    if (input.starterCatalog === true) {
       let order = 0;
       for (const item of STARTER_ITEMS) {
         const row = await tx.itemType.create({

@@ -1,6 +1,7 @@
 import type { Tx } from "@/db";
 import type { Prisma } from "@/generated/prisma/client";
 import type { Capacities, FieldDef, ItemKind, ManifestStatus } from "@/lib/domain";
+import { startOfDayInZone } from "@/lib/tz";
 import { usedCapacity } from "./bookings";
 
 const voyageInclude = {
@@ -85,9 +86,8 @@ export async function getBookingDetail(tx: Tx, id: string) {
   return { booking, voyage, lines, invoice, payments: paymentRows, types };
 }
 
-export async function dashboardStats(tx: Tx) {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+export async function dashboardStats(tx: Tx, timeZone = "UTC") {
+  const startOfDay = startOfDayInZone(new Date(), timeZone);
   const today = await tx.booking.aggregate({
     where: { createdAt: { gte: startOfDay }, status: "CONFIRMED" },
     _count: { _all: true },
@@ -146,3 +146,23 @@ export async function bookingFormData(tx: Tx) {
   };
 }
 export type BookingFormData = Awaited<ReturnType<typeof bookingFormData>>;
+
+export type SetupStep = { key: "location" | "vessel" | "itemType" | "voyage" | "team"; done: boolean };
+
+/** What a brand-new operator still has to set up before they can sell a ticket. */
+export async function setupProgress(tx: Tx): Promise<SetupStep[]> {
+  const [locations, vessels, itemTypes, voyages, members] = await Promise.all([
+    tx.location.count({ where: { active: true } }),
+    tx.vessel.count({ where: { active: true } }),
+    tx.itemType.count(),
+    tx.voyage.count(),
+    tx.membership.count({ where: { status: "active" } }),
+  ]);
+  return [
+    { key: "location", done: locations >= 2 },
+    { key: "vessel", done: vessels >= 1 },
+    { key: "itemType", done: itemTypes >= 1 },
+    { key: "voyage", done: voyages >= 1 },
+    { key: "team", done: members >= 2 },
+  ];
+}

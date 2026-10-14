@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "@/generated/prisma/client";
+import { testDatabaseBlockedReason } from "@/lib/live-guard";
 
 /**
  * Two connections, on purpose:
@@ -7,8 +8,8 @@ import { Prisma, PrismaClient } from "@/generated/prisma/client";
  *           tenant for the transaction so row-level security can enforce isolation.
  *  - admin: the table owner. Used only for login lookups, tenant provisioning and migrations.
  */
-const LOCAL_APP_URL = "postgres://freight_app:freight_app@127.0.0.1:54320/freight";
-const LOCAL_ADMIN_URL = "postgres://postgres@127.0.0.1:54320/freight";
+export const LOCAL_APP_URL = "postgres://freight_app:freight_app@127.0.0.1:54320/freight";
+export const LOCAL_ADMIN_URL = "postgres://postgres@127.0.0.1:54320/freight";
 
 type Handles = { app?: PrismaClient; admin?: PrismaClient };
 
@@ -18,6 +19,11 @@ const handles: Handles = (g.__freightDb ??= {});
 
 function url(envName: "DATABASE_URL" | "ADMIN_DATABASE_URL", fallback: string): string {
   const value = process.env[envName];
+  // Under vitest the only database that may ever be reached is the throwaway test one.
+  if (process.env.VITEST) {
+    const reason = testDatabaseBlockedReason(value ?? fallback);
+    if (reason) throw new Error(`Refusing to connect while testing: ${reason}`);
+  }
   if (value) return value;
   if (process.env.NODE_ENV === "production") throw new Error(`${envName} is required in production`);
   return fallback;
