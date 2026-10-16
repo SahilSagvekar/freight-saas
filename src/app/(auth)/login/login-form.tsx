@@ -1,6 +1,7 @@
 "use client";
 
 import { Building2 } from "lucide-react";
+import Link from "next/link";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export function LoginForm({ next, notice }: { next?: string; notice?: string }) 
       <SubmitButton size="lg" className="w-full" pendingText="Signing in…">
         Sign in
       </SubmitButton>
+      <Link href="/forgot-password" className="block text-center text-sm text-muted hover:underline">Forgot your password?</Link>
     </form>
   );
 }

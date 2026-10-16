@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { withTenant } from "@/db";
 import { VOYAGE_STATUSES, type VoyageStatus } from "@/lib/domain";
 import { canMoveVoyage } from "@/lib/voyage-flow";
-import { requirePermission } from "./auth";
+import { requireWrite } from "./auth";
 import type { ActionResult } from "./booking-actions";
 import { BookingError } from "./bookings";
 import { setVoyageStatus } from "./voyages";
 
 export async function voyageStatusAction(voyageId: string, to: string): Promise<ActionResult> {
-  const auth = await requirePermission("voyage.manage");
+  const auth = await requireWrite("voyage.manage");
   if (!(VOYAGE_STATUSES as readonly string[]).includes(to)) return { ok: false, error: "Unknown status." };
   try {
     await withTenant(auth.tenantId, async (tx) => {

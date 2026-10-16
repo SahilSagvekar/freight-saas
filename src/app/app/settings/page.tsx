@@ -5,16 +5,23 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input, Select } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
-import { withTenant } from "@/db";
-import { ITEM_KINDS, KIND_LABELS, type Capacities, type ItemKind } from "@/lib/domain";
+import { adminDb, withTenant } from "@/db";
+import { ITEM_KINDS, KIND_LABELS, type Capacities, type FieldDef, type ItemKind } from "@/lib/domain";
+import { FIELD_PRESETS } from "@/lib/field-presets";
 import { fromMinor } from "@/lib/money";
 import { requirePermission } from "@/server/auth";
-import { addItemTypeAction, addLocationAction, addTaxAction, addVesselAction, saveGeneralAction, setPriceAction } from "@/server/settings-actions";
+import { Alert } from "@/components/ui/alert";
+import { Button, ButtonLink } from "@/components/ui/button";
+import { connectConfigured } from "@/server/stripe";
+import { appBaseUrl } from "@/server/base-url";
+import { disconnectStripeAction, saveOnlineBookingAction } from "@/server/settings-actions";
+import { addItemTypeAction, addLocationAction, addTaxAction, addVesselAction, saveGeneralAction, setItemFieldsAction, setPriceAction } from "@/server/settings-actions";
 import { getTenantConfig } from "@/server/shared";
 
 export const metadata = { title: "Settings" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
+  const sp = await searchParams;
   const auth = await requirePermission("settings.manage");
   const data = await withTenant(auth.tenantId, async (tx) => ({
     ports: await tx.location.findMany({ orderBy: { name: "asc" } }),
@@ -25,12 +32,34 @@ export default async function SettingsPage() {
     config: await getTenantConfig(tx),
   }));
   const cur = auth.tenant.baseCurrency;
+  const slug = (await adminDb().tenant.findUniqueOrThrow({ where: { id: auth.tenantId }, select: { slug: true } })).slug;
+  const bookingUrl = `${await appBaseUrl()}/book/${slug}`;
   const anyRoute = (id: string) => data.prices.find((p) => p.itemTypeId === id && !p.originId && !p.destinationId)?.unitPrice;
 
   return (
     <>
       <PageHeader title="Settings" description={`Prices are in ${cur}. Changes apply to new bookings only; existing bookings keep the price they were sold at.`} />
       <div className="space-y-6">
+        <Card>
+          <CardHeader title="Details to ask for" description="Tick what staff must record when they sell each item. Weight and consignee also appear on the freight waybill." />
+          <div className="divide-y divide-line">
+            {data.items.map((t) => {
+              const on = new Set((t.fieldSchema as FieldDef[]).map((f) => f.key));
+              return (
+                <div key={t.id} className="px-5 py-4">
+                  <ActionForm action={setItemFieldsAction} reset={false} submitLabel="Save" className="flex flex-wrap items-center gap-x-5 gap-y-2 [&>button]:mt-0">
+                    <input type="hidden" name="itemTypeId" value={t.id} />
+                    <span className="w-40 font-medium">{t.name}</span>
+                    {FIELD_PRESETS[t.kind as ItemKind].map((p) => (
+                      <Checkbox key={p.key} name="fields" value={p.key} label={p.label} defaultChecked={on.has(p.key)} />
+                    ))}
+                  </ActionForm>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
         <Card>
           <CardHeader title="Prices" description="Standard price per item, on any route." />
           <Table>
@@ -126,6 +155,33 @@ export default async function SettingsPage() {
                 <Input id="oversell" name="oversell" type="number" min={0} max={50} step="any" defaultValue={data.config.oversellPercent} />
               </Field>
             </ActionForm>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="Online booking" description="A public page where customers book and, if you connect Stripe, pay by card." />
+          <CardBody className="space-y-4">
+            {sp.connect === "ok" && <Alert tone="success">Stripe is connected. Card payments now go straight to your account.</Alert>}
+            {sp.connect && sp.connect !== "ok" && <Alert tone="warning">Stripe wasn&apos;t connected ({sp.connect.replace("connect=", "")}). Try again.</Alert>}
+            <ActionForm action={saveOnlineBookingAction} reset={false} submitLabel="Save" className="space-y-3">
+              <Checkbox name="enabled" label="Let customers book online" defaultChecked={data.config.publicBookingEnabled} />
+            </ActionForm>
+            {data.config.publicBookingEnabled && <p className="text-sm">Your booking page: <a className="break-all font-medium text-brand-700 underline" href={bookingUrl}>{bookingUrl}</a></p>}
+            <div className="border-t border-line pt-4 text-sm">
+              {auth.tenant.stripeAccountId ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>Card payments: <strong>connected to your Stripe account</strong>.</span>
+                  <form action={disconnectStripeAction}><Button type="submit" size="sm" variant="ghost">Disconnect</Button></form>
+                </div>
+              ) : connectConfigured() ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span>Without Stripe, customers book online and pay at the ticket desk.</span>
+                  <ButtonLink href="/api/stripe/connect/start" variant="secondary" size="sm">Connect Stripe</ButtonLink>
+                </div>
+              ) : (
+                <p className="text-muted">Customers book online and pay at the ticket desk. Card payments need Stripe to be set up by your provider.</p>
+              )}
+            </div>
           </CardBody>
         </Card>
       </div>

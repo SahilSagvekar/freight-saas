@@ -86,3 +86,15 @@ describe("setup and choice tokens", () => {
     expect(await verifyChoiceToken(token)).toEqual({ uid: "user-1", options });
   });
 });
+
+describe("session invalidation", () => {
+  it("rejects sessions issued before the cut-off, allows those after", async () => {
+    const { sessionStillValid } = await import("@/lib/session");
+    const cutoff = new Date("2026-10-14T10:00:00Z");
+    const t = Math.floor(cutoff.getTime() / 1000);
+    expect(sessionStillValid(t - 1, cutoff)).toBe(false);
+    expect(sessionStillValid(t, cutoff)).toBe(true);
+    expect(sessionStillValid(t + 100, cutoff)).toBe(true);
+    expect(sessionStillValid(5, new Date("1970-01-01T00:00:00Z"))).toBe(true);
+  });
+});

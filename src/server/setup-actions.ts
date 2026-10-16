@@ -2,8 +2,8 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { rateLimit } from "@/lib/rate-limit";
 import { applySetupToken } from "./setup-links";
+import { throttle } from "./throttle";
 
 export type SetPasswordState = { error?: string };
 
@@ -16,7 +16,7 @@ export async function setPasswordAction(_prev: SetPasswordState, formData: FormD
 
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const limited = rateLimit(`set-password:${ip}`, 10, 15 * 60 * 1000);
+  const limited = await throttle(`set-password:${ip}`, 10, 15 * 60 * 1000);
   if (!limited.allowed) return { error: `Too many attempts. Try again in ${Math.ceil(limited.retryAfterSeconds / 60)} minute(s).` };
 
   const result = await applySetupToken(token, password);

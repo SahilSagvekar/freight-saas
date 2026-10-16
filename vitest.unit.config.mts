@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
   test: {
     environment: "node",
-    include: ["tests/unit.test.ts", "tests/live-safety.test.ts", "tests/portals.test.ts"],
+    include: ["tests/unit.test.ts", "tests/live-safety.test.ts", "tests/portals.test.ts","tests/ops.test.ts"],
     env: { SESSION_SECRET: "test-secret-test-secret-test-secret-123" },
   },
 });

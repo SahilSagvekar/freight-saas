@@ -61,3 +61,21 @@ export async function verifyChoiceToken(token: string | null | undefined): Promi
     return null;
   }
 }
+
+const CONNECT_STATE = "stripe-connect";
+
+/** The `state` carried through "Connect with Stripe", so the return trip can only complete for the operator who started it. */
+export async function signConnectState(input: { tid: string; uid: string }): Promise<string> {
+  return new SignJWT({ tid: input.tid, uid: input.uid, purpose: CONNECT_STATE }).setProtectedHeader({ alg: "HS256" }).setIssuedAt().setExpirationTime("15m").sign(secretKey());
+}
+
+export async function verifyConnectState(token: string | null | undefined): Promise<{ tid: string; uid: string } | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
+    if (payload.purpose !== CONNECT_STATE || typeof payload.tid !== "string" || typeof payload.uid !== "string") return null;
+    return { tid: payload.tid, uid: payload.uid };
+  } catch {
+    return null;
+  }
+}

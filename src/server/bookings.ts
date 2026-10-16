@@ -164,6 +164,7 @@ export async function createBooking(tx: Tx, ctx: CreateContext, input: CreateBoo
       customerId: input.customerId,
       contactName: input.contactName,
       contactPhone: input.contactPhone || null,
+      contactEmail: input.contactEmail || null,
       status,
       reviewReason: reviewReasons.length > 0 ? reviewReasons.join("; ") : null,
       currency: tenant.baseCurrency,
@@ -276,7 +277,11 @@ export async function rejectBooking(tx: Tx, ctx: Actor, bookingId: string, note?
   await audit(tx, { tenantId: ctx.tenantId, actorId: ctx.actorId, action: "booking.rejected", entity: "booking", entityId: bookingId, before: booking });
 }
 
-export async function cancelBooking(tx: Tx, ctx: Actor, bookingId: string) {
+/**
+ * Cancels a booking. If money has been taken, the caller must say how it is being handed back (`refund`), and the
+ * whole net amount is refunded in the same transaction, so a cancelled booking never keeps the customer's money.
+ */
+export async function cancelBooking(tx: Tx, ctx: Actor, bookingId: string, opts: { refund?: { method: PaymentMethod; reference?: string } } = {}) {
   const booking = await lockBooking(tx, bookingId);
   if (booking.status === "CANCELLED") return;
 
@@ -285,7 +290,11 @@ export async function cancelBooking(tx: Tx, ctx: Actor, bookingId: string) {
     await lockRow(tx, "invoices", invoiceRef.id);
     const paid = await paidTotal(tx, invoiceRef.id);
     if (paid > 0) {
-      throw new BookingError("HAS_PAYMENTS", "This booking has payments recorded. Refunds are not supported yet.");
+      if (!opts.refund) throw new BookingError("HAS_PAYMENTS", "This booking has payments recorded. Refund them to cancel.");
+      await tx.payment.create({
+        data: { tenantId: ctx.tenantId, invoiceId: invoiceRef.id, method: opts.refund.method, amount: -paid, reference: opts.refund.reference || "Refund on cancellation", receivedBy: ctx.actorId },
+      });
+      await audit(tx, { tenantId: ctx.tenantId, actorId: ctx.actorId, action: "payment.refunded", entity: "invoice", entityId: invoiceRef.id, after: { amount: paid, method: opts.refund.method, reason: "cancellation" } });
     }
     await tx.invoice.update({ where: { id: invoiceRef.id }, data: { status: "VOID" } });
   }
@@ -336,6 +345,34 @@ export async function recordPayment(
     after: { amount: input.amount, method: input.method, status },
   });
   return { status, outstanding: invoice.total - paid - input.amount };
+}
+
+/** Hands back part or all of what has been paid on an invoice, without cancelling the booking. */
+export async function refundPayment(
+  tx: Tx,
+  ctx: Actor,
+  invoiceId: string,
+  input: { method: PaymentMethod; amount: number; reason: string },
+) {
+  if (!Number.isInteger(input.amount) || input.amount <= 0) throw new BookingError("INVALID", "Enter an amount greater than zero");
+  if (!input.reason.trim()) throw new BookingError("INVALID", "Say why you are refunding");
+
+  await lockRow(tx, "invoices", invoiceId);
+  const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
+  if (!invoice) throw new BookingError("NOT_FOUND", "Invoice not found");
+  if (invoice.status === "VOID") throw new BookingError("BAD_STATE", "This invoice is void");
+
+  const paid = await paidTotal(tx, invoiceId);
+  if (input.amount > paid) throw new BookingError("OVERPAYMENT", "That is more than has been paid");
+
+  await tx.payment.create({
+    data: { tenantId: ctx.tenantId, invoiceId, method: input.method, amount: -input.amount, reference: `Refund: ${input.reason.trim()}`.slice(0, 200), receivedBy: ctx.actorId },
+  });
+  const net = paid - input.amount;
+  const status = net >= invoice.total ? "PAID" : net > 0 ? "PARTIAL" : "UNPAID";
+  await tx.invoice.update({ where: { id: invoiceId }, data: { status } });
+  await audit(tx, { tenantId: ctx.tenantId, actorId: ctx.actorId, action: "payment.refunded", entity: "invoice", entityId: invoiceId, after: { amount: input.amount, method: input.method, reason: input.reason.trim(), status } });
+  return { status, paid: net };
 }
 
 async function paidTotal(tx: Tx, invoiceId: string): Promise<number> {

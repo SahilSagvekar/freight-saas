@@ -29,6 +29,7 @@ export function BookingForm({
   submit,
   initialVoyageId,
   banner,
+  askEmail = false,
 }: {
   data: BookingFormData;
   currency: string;
@@ -36,10 +37,13 @@ export function BookingForm({
   submit: BookingSubmit;
   initialVoyageId?: string;
   banner?: React.ReactNode;
+  /** Customers booking for themselves must give an email; staff booking for walk-ups need not. */
+  askEmail?: boolean;
 }) {
   const [voyageId, setVoyageId] = useState(initialVoyageId ?? data.voyages[0]?.id ?? "");
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [nextKey, setNextKey] = useState(1);
@@ -81,7 +85,8 @@ export function BookingForm({
     setError(null);
     setFieldErrors({});
     if (!voyage) return setError("Choose a voyage first.");
-    if (!contactName.trim()) return setError("Enter the customer's name.");
+    if (!contactName.trim()) return setError(askEmail ? "Enter your name." : "Enter the customer's name.");
+    if (askEmail && !/^\S+@\S+\.\S+$/.test(contactEmail.trim())) return setError("Enter your email so we can send your ticket.");
     if (lines.length === 0) return setError("Add at least one passenger, vehicle or cargo item.");
     if (unpriced.length) return setError(`No price is set for ${unpriced[0].type.name} on this route.`);
     start(async () => {
@@ -89,6 +94,7 @@ export function BookingForm({
         voyageId,
         contactName,
         contactPhone,
+        contactEmail: contactEmail.trim(),
         notes,
         quotedTotal: totals.total,
         lines: lines.map((l) => ({ itemTypeId: l.itemTypeId, quantity: l.quantity, attributes: l.attributes })),
@@ -134,6 +140,11 @@ export function BookingForm({
             <Field label="Phone" htmlFor="phone" hint="Optional">
               <Input id="phone" type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="+1 555 0100" />
             </Field>
+            {askEmail && (
+              <Field label="Email" htmlFor="email" className="sm:col-span-2" required hint="Your ticket is sent here.">
+                <Input id="email" type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} autoComplete="email" />
+              </Field>
+            )}
           </CardBody>
         </Card>
 

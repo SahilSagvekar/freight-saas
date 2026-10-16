@@ -11,6 +11,7 @@ export const createBookingSchema = z.object({
   voyageId: z.string().uuid("Choose a voyage"),
   contactName: z.string().trim().min(1, "Contact name is required").max(120),
   contactPhone: z.string().trim().max(40).optional().or(z.literal("")),
+  contactEmail: z.string().trim().email("Enter a valid email").max(200).optional().or(z.literal("")),
   customerId: z.string().uuid().optional(),
   notes: z.string().trim().max(500).optional().or(z.literal("")),
   /** Total the agent quoted while offline; if the server's price differs, the booking goes to review. */

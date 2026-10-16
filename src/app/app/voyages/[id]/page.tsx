@@ -1,4 +1,4 @@
-import { ArrowLeft, ClipboardList, Plus } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, Printer } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ManifestButton } from "@/components/app/booking-actions";
@@ -46,7 +46,7 @@ export default async function VoyagePage({ params }: PageProps<"/app/voyages/[id
         </div>
       </Card>
       <Card>
-        <CardHeader title="Manifest" description="Everything booked on this sailing." />
+        <CardHeader title="Manifest" description="Everything booked on this sailing." action={<ButtonLink href={`/app/voyages/${v.id}/manifest`} variant="secondary" size="sm"><Printer className="size-4" aria-hidden />Print or download</ButtonLink>} />
         {manifest.length === 0 ? (
           <EmptyState icon={ClipboardList} title="Nothing booked yet" description="Confirmed bookings appear on the manifest automatically." />
         ) : (

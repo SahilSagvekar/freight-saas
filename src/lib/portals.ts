@@ -48,7 +48,7 @@ export function homeFor(perms: Perms): string | null {
   }
 }
 
-export type NavIcon = "dashboard" | "voyages" | "bookings" | "review" | "settings" | "desk" | "team";
+export type NavIcon = "dashboard" | "voyages" | "bookings" | "review" | "settings" | "desk" | "team" | "reports" | "checkin" | "billing";
 export type NavEntry = { href: string; label: string; icon: NavIcon };
 
 /** Sidebar links for a set of permissions. Each link appears only when its page would let the person in. */
@@ -61,8 +61,11 @@ export function navFor(perms: Perms): NavEntry[] {
     items.push({ href: "/app/voyages", label: "Voyages", icon: "voyages" });
     items.push({ href: "/app/bookings", label: "Bookings", icon: "bookings" });
   }
+  if (has(perms, "manifest.update")) items.push({ href: "/app/checkin", label: "Check-in", icon: "checkin" });
+  if (has(perms, "invoice.view")) items.push({ href: "/app/reports", label: "Daily report", icon: "reports" });
   if (has(perms, "booking.review")) items.push({ href: "/app/review", label: "Review queue", icon: "review" });
   if (has(perms, "team.manage")) items.push({ href: "/app/team", label: "Team", icon: "team" });
   if (has(perms, "settings.manage")) items.push({ href: "/app/settings", label: "Settings", icon: "settings" });
+  if (has(perms, "settings.manage")) items.push({ href: "/app/billing", label: "Billing", icon: "billing" });
   return items;
 }

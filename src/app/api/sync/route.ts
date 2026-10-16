@@ -8,6 +8,7 @@ export async function POST(request: Request) {
   const auth = await getAuth();
   if (!auth) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   if (!can(auth, "booking.create")) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  if (auth.billing.level !== "full") return NextResponse.json({ error: "This account is read-only until billing is sorted out." }, { status: 402 });
 
   const body = await request.json().catch(() => null);
   const parsed = syncRequestSchema.safeParse(body);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Anchor, CalendarDays, ClipboardCheck, LayoutDashboard, LogOut, Menu, Settings, Store, Ticket, Users, X } from "lucide-react";
+import { Anchor, BarChart3, CreditCard, CalendarDays, ClipboardCheck, ScanLine, LayoutDashboard, LogOut, Menu, Settings, Store, Ticket, UserCog, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; badge?: number };
 
-const ICONS = { dashboard: LayoutDashboard, voyages: CalendarDays, bookings: Ticket, review: ClipboardCheck, settings: Settings, desk: Store, team: Users };
+const ICONS = { dashboard: LayoutDashboard, voyages: CalendarDays, bookings: Ticket, review: ClipboardCheck, settings: Settings, desk: Store, team: Users, reports: BarChart3, checkin: ScanLine, billing: CreditCard };
 
 function Links({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -67,6 +67,9 @@ export function AppNav({
         <p className="truncate text-sm font-medium text-white">{userName}</p>
         <p className="truncate text-xs text-brand-300/70">{roleName}</p>
       </div>
+      <Link href="/app/account" onClick={() => setOpen(false)} className="mb-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-brand-200/80 hover:bg-white/8 hover:text-white">
+        <UserCog className="size-4" aria-hidden /> Your account
+      </Link>
       <form action={logout}>
         <button className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-brand-200/80 hover:bg-white/8 hover:text-white">
           <LogOut className="size-4" aria-hidden /> Sign out

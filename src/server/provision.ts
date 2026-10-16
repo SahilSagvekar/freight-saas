@@ -17,6 +17,8 @@ export type ProvisionInput = {
    * chooses their own through a one-time link (see issueSetupLink). A password is only passed by demo seeds and tests.
    */
   owner: { name: string; email: string; password?: string; phone?: string };
+  /** Sets up a trial or a paid state at creation. Left out, the operator is "comped": full access, no billing. */
+  billing?: { plan: "starter" | "operator"; status: "trialing" | "active" | "comped"; trialEndsAt?: Date };
   /** Seeds a placeholder price list. Off by default: a real operator enters their own ports, boats and prices. */
   starterCatalog?: boolean;
 };
@@ -99,6 +101,7 @@ export async function provisionTenant(input: ProvisionInput) {
         baseCurrency,
         locale: input.locale ?? "en",
         timeZone: input.timeZone ?? "UTC",
+        ...(input.billing ? { plan: input.billing.plan, billingStatus: input.billing.status, trialEndsAt: input.billing.trialEndsAt ?? null } : {}),
       },
     });
 

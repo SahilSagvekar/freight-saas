@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
 import { formatMoney, fromMinor } from "@/lib/money";
-import { cancelBookingAction, manifestAction, recordPaymentAction, reviewBookingAction } from "@/server/booking-actions";
+import { cancelBookingAction, manifestAction, recordPaymentAction, refundAction, reviewBookingAction } from "@/server/booking-actions";
 import type { ManifestStatus } from "@/lib/domain";
 
 function useAction() {
@@ -24,19 +24,67 @@ function useAction() {
   return { pending, error, run };
 }
 
-export function CancelBookingButton({ bookingId }: { bookingId: string }) {
+export function CancelBookingButton({ bookingId, paid = 0, canRefund = false, currency = "USD", locale = "en" }: { bookingId: string; paid?: number; canRefund?: boolean; currency?: string; locale?: string }) {
   const { pending, error, run } = useAction();
   const [confirming, setConfirming] = useState(false);
+  const [method, setMethod] = useState("CASH");
+  const hasMoney = paid > 0;
+  if (hasMoney && !canRefund) {
+    return <Alert tone="info" title="This booking has been paid">Ask someone with refund permission to refund it before it can be cancelled.</Alert>;
+  }
   if (!confirming) return <Button variant="secondary" onClick={() => setConfirming(true)}>Cancel booking</Button>;
   return (
     <div className="space-y-2">
-      <Alert tone="warning" title="Cancel this booking?">Space is released and the invoice is voided.</Alert>
+      <Alert tone="warning" title="Cancel this booking?">
+        {hasMoney ? `Space is released and ${formatMoney(paid, currency, locale)} is refunded.` : "Space is released and the invoice is voided."}
+      </Alert>
+      {hasMoney && (
+        <Field label="Refund paid by" htmlFor="cancel-refund-method">
+          <Select id="cancel-refund-method" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <option value="CASH">Cash</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option>
+          </Select>
+        </Field>
+      )}
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex gap-2">
-        <Button variant="danger" disabled={pending} onClick={() => run(() => cancelBookingAction(bookingId))}>{pending ? "Cancelling…" : "Yes, cancel it"}</Button>
+        <Button variant="danger" disabled={pending} onClick={() => run(() => cancelBookingAction(bookingId, hasMoney ? method : undefined))}>{pending ? "Cancelling…" : hasMoney ? "Cancel and refund" : "Yes, cancel it"}</Button>
         <Button variant="ghost" onClick={() => setConfirming(false)}>Keep booking</Button>
       </div>
     </div>
+  );
+}
+
+export function RefundForm({ invoiceId, currency, locale, paid }: { invoiceId: string; currency: string; locale: string; paid: number }) {
+  const { pending, error, run } = useAction();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(fromMinor(paid, currency));
+  const [method, setMethod] = useState("CASH");
+  const [reason, setReason] = useState("");
+  if (!open) return <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Refund…</Button>;
+  return (
+    <form
+      className="space-y-3 rounded-lg border border-line p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(() => refundAction({ invoiceId, currency, amount, method, reason }), () => setOpen(false));
+      }}
+    >
+      <p className="text-sm text-muted">Paid so far: <span className="tabular font-semibold text-ink">{formatMoney(paid, currency, locale)}</span></p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Refund amount" htmlFor="refund-amount"><Input id="refund-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+        <Field label="Paid back by" htmlFor="refund-method">
+          <Select id="refund-method" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <option value="CASH">Cash</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option>
+          </Select>
+        </Field>
+        <Field label="Reason" htmlFor="refund-reason" className="col-span-2"><Input id="refund-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Sailing cancelled by weather" required /></Field>
+      </div>
+      {error && <Alert tone="error">{error}</Alert>}
+      <div className="flex gap-2">
+        <Button type="submit" variant="danger" disabled={pending}>{pending ? "Refunding…" : "Refund"}</Button>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Never mind</Button>
+      </div>
+    </form>
   );
 }
 

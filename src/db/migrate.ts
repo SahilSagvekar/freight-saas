@@ -21,9 +21,12 @@ export async function runMigrations(adminUrl: string, appRole = "freight_app") {
     await client.query(`grant usage on schema public to ${role}`);
     await client.query(`grant select, insert, update, delete on all tables in schema public to ${role}`);
 
+    // Throttle counters are platform-level; tenant code has no business reading or resetting them.
+    await client.query(`revoke all on table rate_limits from ${role}`);
+
     // Users are managed by the platform (admin connection), never by tenant code.
     await client.query(`revoke all on table users from ${role}`);
-    await client.query(`grant select (id, email, name, phone, created_at) on table users to ${role}`);
+    await client.query(`grant select (id, email, name, phone, created_at, sessions_valid_from) on table users to ${role}`);
 
     // Tenants are provisioned by the platform; a tenant may edit only its own display settings.
     await client.query(`revoke all on table tenants from ${role}`);

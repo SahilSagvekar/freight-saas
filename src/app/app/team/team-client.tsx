@@ -53,8 +53,11 @@ function LinkBox({ invite, onClose }: { invite: InviteResult; onClose: () => voi
     }
   };
   return (
-    <Alert tone="success" title={`Sign-in link for ${invite.name}`}>
-      <p>Send this to {invite.email}. It works once and expires in 3 days. It will not be shown again.</p>
+    <Alert tone="success" title={invite.emailed ? `Emailed ${invite.name}` : `Sign-in link for ${invite.name}`}>
+      <p>
+        {invite.emailed ? `We emailed ${invite.email}. ` : `Send this to ${invite.email}. `}
+        The link works once and expires in 3 days. It will not be shown again.
+      </p>
       <div className="mt-2 flex gap-2">
         <Input readOnly value={invite.link} aria-label="One-time sign-in link" onFocus={(e) => e.currentTarget.select()} className="h-9 font-mono text-xs" />
         <Button type="button" size="sm" variant="secondary" onClick={copy}>

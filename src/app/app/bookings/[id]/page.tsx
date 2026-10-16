@@ -1,8 +1,9 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText, Ticket } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CancelBookingButton, PaymentForm, ReviewButtons } from "@/components/app/booking-actions";
+import { CancelBookingButton, PaymentForm, RefundForm, ReviewButtons } from "@/components/app/booking-actions";
 import { Alert } from "@/components/ui/alert";
+import { ButtonLink } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page";
@@ -35,7 +36,7 @@ export default async function BookingPage({ params }: PageProps<"/app/bookings/[
         back={<Link href="/app/bookings" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"><ArrowLeft className="size-4" aria-hidden />Bookings</Link>}
         title={formatBookingNo(config, booking.bookingNo)}
         description={<>{booking.contactName}{booking.contactPhone ? ` · ${booking.contactPhone}` : ""} · created {formatDateTime(booking.createdAt)}</>}
-        actions={<StatusBadge status={booking.status} />}
+        actions={<>{booking.status === "CONFIRMED" && <><ButtonLink href={`/app/bookings/${booking.id}/ticket`} variant="secondary"><Ticket className="size-4" aria-hidden />Ticket</ButtonLink>{lines.some((l) => l.kind === "CARGO") && <ButtonLink href={`/app/bookings/${booking.id}/waybill`} variant="secondary"><FileText className="size-4" aria-hidden />Waybill</ButtonLink>}</>}<StatusBadge status={booking.status} /></>}
       />
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="space-y-6">
@@ -89,15 +90,16 @@ export default async function BookingPage({ params }: PageProps<"/app/bookings/[
               <CardBody className="space-y-4">
                 {payments.length > 0 && (
                   <ul className="space-y-1.5 text-sm">
-                    {payments.map((p) => <li key={p.id} className="flex justify-between"><span className="text-muted">{formatDateTime(p.receivedAt)} · {p.method.replace("_", " ").toLowerCase()}</span><span className="tabular font-medium">{money(p.amount)}</span></li>)}
+                    {payments.map((p) => <li key={p.id} className="flex justify-between"><span className="text-muted">{formatDateTime(p.receivedAt)} · {p.amount < 0 ? "refund" : "paid"} · {p.method.replace("_", " ").toLowerCase()}</span><span className={`tabular font-medium ${p.amount < 0 ? "text-danger-700" : ""}`}>{money(p.amount)}</span></li>)}
                   </ul>
                 )}
                 {outstanding > 0 && invoice.status !== "VOID" && can(auth, "payment.record") && <PaymentForm invoiceId={invoice.id} currency={booking.currency} locale={auth.tenant.locale} outstanding={outstanding} />}
                 {invoice.status === "PAID" && <p className="text-sm text-ok-700">Paid in full.</p>}
+                {paid > 0 && invoice.status !== "VOID" && can(auth, "payment.refund") && <RefundForm invoiceId={invoice.id} currency={booking.currency} locale={auth.tenant.locale} paid={paid} />}
               </CardBody>
             </Card>
           )}
-          {booking.status === "CONFIRMED" && can(auth, "booking.cancel") && <CancelBookingButton bookingId={booking.id} />}
+          {booking.status === "CONFIRMED" && can(auth, "booking.cancel") && <CancelBookingButton bookingId={booking.id} paid={paid} canRefund={can(auth, "payment.refund")} currency={booking.currency} locale={auth.tenant.locale} />}
         </div>
       </div>
     </>

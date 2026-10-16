@@ -24,7 +24,7 @@ export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 export const PAYMENT_METHODS = ["CASH", "CARD", "BANK_TRANSFER", "OTHER"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const BOOKING_SOURCES = ["ONLINE", "OFFLINE_SYNC"] as const;
+export const BOOKING_SOURCES = ["ONLINE", "OFFLINE_SYNC", "PUBLIC"] as const;
 export type BookingSource = (typeof BOOKING_SOURCES)[number];
 
 export const TAX_APPLIES_TO = ["ALL", ...ITEM_KINDS] as const;
@@ -51,6 +51,7 @@ export const PERMISSIONS = {
   "manifest.update": "Update manifests",
   "invoice.view": "View invoices",
   "payment.record": "Record payments",
+  "payment.refund": "Refund payments",
   "settings.manage": "Manage settings",
   "team.manage": "Manage team and roles",
 } as const;
@@ -70,6 +71,7 @@ export const DEFAULT_ROLES: { name: string; permissions: Permission[] }[] = [
       "manifest.update",
       "invoice.view",
       "payment.record",
+      "payment.refund",
     ],
   },
   { name: "Booking agent", permissions: ["booking.view", "booking.create"] },

@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SESSION_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `npm ci` already runs `prisma generate` through postinstall.
+      - run: npm run lint
+      - run: npm run typecheck
+      # Boots its own throwaway Postgres (embedded-postgres), so no database service is needed.
+      - run: npm test
+      - run: npm run build
+        env:
+          DATABASE_URL: postgres://build:build@127.0.0.1:5432/build
+          ADMIN_DATABASE_URL: postgres://build:build@127.0.0.1:5432/build
+          APP_URL: https://ci.invalid

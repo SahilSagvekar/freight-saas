@@ -2,17 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { isUniqueViolation, withTenant } from "@/db";
-import { ITEM_KINDS } from "@/lib/domain";
+import { adminDb, isUniqueViolation, withTenant } from "@/db";
+import { ITEM_KINDS, type FieldDef, type ItemKind } from "@/lib/domain";
+import { buildFieldSchema } from "@/lib/field-presets";
 import { toMinor } from "@/lib/money";
-import { requirePermission } from "./auth";
+import { requireWrite } from "./auth";
 import type { ActionResult } from "./booking-actions";
 import { BookingError } from "./bookings";
 import { setTenantSetting } from "./shared";
+import { assertWithinPlan } from "./billing";
 import { createVoyage } from "./voyages";
 
 async function guarded(permission: "settings.manage" | "voyage.manage", fn: (ctx: { tenantId: string; actorId: string; currency: string }, tx: Parameters<Parameters<typeof withTenant>[1]>[0]) => Promise<void>, message: string): Promise<ActionResult> {
-  const auth = await requirePermission(permission);
+  const auth = await requireWrite(permission);
   try {
     await withTenant(auth.tenantId, (tx) => fn({ tenantId: auth.tenantId, actorId: auth.userId, currency: auth.tenant.baseCurrency }, tx));
     revalidatePath("/app", "layout");
@@ -40,7 +42,10 @@ export async function addVesselAction(f: FormData): Promise<ActionResult> {
   const p = z.object({ name: z.string().trim().min(1, "Enter a vessel name").max(80), PASSENGER: n(), VEHICLE: n(), CARGO: n() }).safeParse({ name: text(f, "name"), PASSENGER: text(f, "passengers") || "0", VEHICLE: text(f, "vehicles") || "0", CARGO: text(f, "cargo") || "0" });
   if (!p.success) return { ok: false, error: first(p) };
   const { name, ...capacities } = p.data;
-  return guarded("settings.manage", async (c, tx) => void (await tx.vessel.create({ data: { tenantId: c.tenantId, name, capacities } })), "Vessel added");
+  return guarded("settings.manage", async (c, tx) => {
+    await assertWithinPlan(tx, c.tenantId, "vessel");
+    await tx.vessel.create({ data: { tenantId: c.tenantId, name, capacities } });
+  }, "Vessel added");
 }
 
 export async function addItemTypeAction(f: FormData): Promise<ActionResult> {
@@ -89,4 +94,30 @@ export async function createVoyageAction(f: FormData): Promise<ActionResult & { 
   let id: string | undefined;
   const res = await guarded("voyage.manage", async (c, tx) => { id = (await createVoyage(tx, { tenantId: c.tenantId, actorId: c.actorId }, p.data)).id; }, "Voyage scheduled");
   return { ...res, id };
+}
+
+/** Chooses which extra details are asked for on an item (plate number, cargo weight, consignee...). Applies to new bookings. */
+export async function setItemFieldsAction(f: FormData): Promise<ActionResult> {
+  const itemTypeId = z.string().uuid().safeParse(text(f, "itemTypeId"));
+  if (!itemTypeId.success) return { ok: false, error: "Unknown item" };
+  const selected = f.getAll("fields").map(String);
+  return guarded("settings.manage", async (_c, tx) => {
+    const type = await tx.itemType.findUnique({ where: { id: itemTypeId.data } });
+    if (!type) throw new BookingError("NOT_FOUND", "Item not found");
+    const schema = buildFieldSchema(type.kind as ItemKind, selected, type.fieldSchema as FieldDef[]);
+    await tx.itemType.update({ where: { id: type.id }, data: { fieldSchema: schema } });
+  }, "Details saved");
+}
+
+/** Switches the public booking page on or off. */
+export async function saveOnlineBookingAction(f: FormData): Promise<ActionResult> {
+  const on = f.get("enabled") === "on";
+  return guarded("settings.manage", (c, tx) => setTenantSetting(tx, c.tenantId, "publicBookingEnabled", on), on ? "Online booking is on" : "Online booking is off");
+}
+
+/** Detaches the connected Stripe account. Existing paid bookings are untouched. */
+export async function disconnectStripeAction(): Promise<void> {
+  const auth = await requireWrite("settings.manage");
+  await adminDb().tenant.update({ where: { id: auth.tenantId }, data: { stripeAccountId: null } });
+  revalidatePath("/app/settings");
 }

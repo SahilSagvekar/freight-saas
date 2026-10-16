@@ -1,6 +1,9 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, withTenant } from "@/db";
-import { BookingError, cancelBooking, createBooking, recordPayment, setManifestStatus, usedCapacity } from "@/server/bookings";
+import { BookingError, cancelBooking, createBooking, recordPayment, refundPayment, setManifestStatus, usedCapacity } from "@/server/bookings";
+import { localDateString } from "@/lib/tz";
+import { dailyReport } from "@/server/reports";
+import { dailyReportCsv } from "@/server/reports-csv";
 import { addTax, makeOperation } from "./helpers";
 
 afterAll(closeDb);
@@ -205,5 +208,76 @@ describe("payments, cancellation and manifest", () => {
     expect(done.receivedBy).toBe("J. Smith");
     expect(done.loadedAt).toBeTruthy();
     expect(done.deliveredAt).toBeTruthy();
+  });
+});
+
+describe("refunds", () => {
+  async function paidBooking() {
+    const op = await makeOperation();
+    const created = await withTenant(op.tenantId, (tx) =>
+      createBooking(tx, online(op), { voyageId: op.voyage.id, contactName: "Pat", lines: [{ itemTypeId: op.type("Adult").id, quantity: 2 }] }),
+    );
+    await withTenant(op.tenantId, (tx) => recordPayment(tx, op.ctx, created.invoiceId!, { method: "CASH", amount: created.total }));
+    return { op, total: created.total, invoiceId: created.invoiceId!, bookingId: created.bookingId };
+  }
+
+  it("refunds part of a payment and reopens the invoice", async () => {
+    const { op, total, invoiceId } = await paidBooking();
+    const r = await withTenant(op.tenantId, (tx) => refundPayment(tx, op.ctx, invoiceId, { method: "CASH", amount: 1000, reason: "Delay" }));
+    expect(r.status).toBe("PARTIAL");
+    expect(r.paid).toBe(total - 1000);
+  });
+
+  it("won't refund more than was paid, or without a reason", async () => {
+    const { op, total, invoiceId } = await paidBooking();
+    await expect(withTenant(op.tenantId, (tx) => refundPayment(tx, op.ctx, invoiceId, { method: "CASH", amount: total + 1, reason: "x" }))).rejects.toMatchObject({ code: "OVERPAYMENT" });
+    await expect(withTenant(op.tenantId, (tx) => refundPayment(tx, op.ctx, invoiceId, { method: "CASH", amount: 100, reason: " " }))).rejects.toMatchObject({ code: "INVALID" });
+  });
+
+  it("cancelling a paid booking needs a refund, then refunds everything and voids the invoice", async () => {
+    const { op, invoiceId, bookingId } = await paidBooking();
+    await expect(withTenant(op.tenantId, (tx) => cancelBooking(tx, op.ctx, bookingId))).rejects.toMatchObject({ code: "HAS_PAYMENTS" });
+    await withTenant(op.tenantId, (tx) => cancelBooking(tx, op.ctx, bookingId, { refund: { method: "CASH" } }));
+    const after = await withTenant(op.tenantId, async (tx) => ({
+      invoice: await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } }),
+      net: (await tx.payment.aggregate({ where: { invoiceId }, _sum: { amount: true } }))._sum.amount,
+    }));
+    expect(after.invoice.status).toBe("VOID");
+    expect(after.net).toBe(0);
+  });
+});
+
+describe("daily report", () => {
+  it("adds up sales, cash taken, refunds and sailings for the day", async () => {
+    const op = await makeOperation();
+    const created = await withTenant(op.tenantId, (tx) =>
+      createBooking(tx, online(op), { voyageId: op.voyage.id, contactName: "Pat", lines: [{ itemTypeId: op.type("Adult").id, quantity: 2 }] }),
+    );
+    await withTenant(op.tenantId, (tx) => recordPayment(tx, op.ctx, created.invoiceId!, { method: "CASH", amount: created.total }));
+    await withTenant(op.tenantId, (tx) => refundPayment(tx, op.ctx, created.invoiceId!, { method: "CASH", amount: 500, reason: "Delay" }));
+
+    const today = localDateString(new Date(), "UTC");
+    const report = (await withTenant(op.tenantId, (tx) => dailyReport(tx, today, "UTC")))!;
+    expect(report.bookings.confirmed).toBe(1);
+    expect(report.sales.total).toBe(created.total);
+    expect(report.collected.CASH).toBe(created.total);
+    expect(report.refunded).toBe(500);
+    expect(report.netCash).toBe(created.total - 500);
+    expect(report.byCashier).toHaveLength(1);
+    expect(report.outstanding.count).toBe(1); // part-refunded invoice is owed again
+
+    const csv = dailyReportCsv(report, "USD");
+    expect(csv).toContain("Refunded");
+    expect(await withTenant(op.tenantId, (tx) => dailyReport(tx, "not-a-date", "UTC"))).toBeNull();
+  });
+
+  it("never counts another operator's money", async () => {
+    const a = await makeOperation();
+    const b = await makeOperation();
+    const made = await withTenant(a.tenantId, (tx) => createBooking(tx, online(a), { voyageId: a.voyage.id, contactName: "A", lines: [{ itemTypeId: a.type("Adult").id, quantity: 1 }] }));
+    await withTenant(a.tenantId, (tx) => recordPayment(tx, a.ctx, made.invoiceId!, { method: "CASH", amount: made.total }));
+    const report = (await withTenant(b.tenantId, (tx) => dailyReport(tx, localDateString(new Date(), "UTC"), "UTC")))!;
+    expect(report.sales.total).toBe(0);
+    expect(report.netCash).toBe(0);
   });
 });

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { adminTransaction, withTenant, type Tx } from "@/db";
 import { ALL_PERMISSIONS, type Permission } from "@/lib/domain";
 import { hashPassword } from "@/lib/password";
+import { assertWithinPlan } from "./billing";
 import { BookingError } from "./bookings";
 import { audit } from "./shared";
 
@@ -68,6 +69,7 @@ export async function addMember(a: Actor, input: { name: string; email: string; 
   const unusable = await hashPassword(randomBytes(32).toString("base64url"));
   return adminTransaction(async (tx) => {
     await ownRole(tx, a.tenantId, input.roleId);
+    await assertWithinPlan(tx, a.tenantId, "user");
     const existing = await tx.$queryRaw<{ id: string }[]>`select id from users where lower(email) = ${email}`;
     if (existing.length > 0) {
       // Attaching someone who already has an account would let any owner probe which emails exist. Refused on purpose.

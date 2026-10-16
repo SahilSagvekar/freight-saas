@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, DEFAULT_ROLES, type Permission } from "@/lib/domain";
 import { homeFor, navFor, portalFor } from "@/lib/portals";
-import { startOfDayInZone } from "@/lib/tz";
+import { dayRange, localDateString, startOfDayInZone } from "@/lib/tz";
+import { toCsv } from "@/lib/csv";
 import { canMoveVoyage } from "@/lib/voyage-flow";
 
 const role = (name: string) => DEFAULT_ROLES.find((r) => r.name === name)!.permissions;
@@ -30,11 +31,11 @@ describe("portals", () => {
 
   it("only links to pages the person may open", () => {
     const hrefs = (p: Permission[]) => navFor(p).map((i) => i.href);
-    expect(hrefs(role("Dock crew"))).toEqual(["/app/voyages", "/app/bookings"]);
+    expect(hrefs(role("Dock crew"))).toEqual(["/app/voyages", "/app/bookings", "/app/checkin"]);
     expect(hrefs(role("Booking agent"))).toContain("/app/desk");
     expect(hrefs(role("Booking agent"))).not.toContain("/app/review");
     expect(hrefs(role("Cashier"))).not.toContain("/app/settings");
-    expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/desk", "/app/voyages", "/app/bookings", "/app/review", "/app/team", "/app/settings"]);
+    expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/desk", "/app/voyages", "/app/bookings", "/app/checkin", "/app/reports", "/app/review", "/app/team", "/app/settings", "/app/billing"]);
   });
 
   it("does not send a team-only role to a page that needs booking.view", () => {
@@ -68,5 +69,55 @@ describe("voyage flow", () => {
     expect(canMoveVoyage("DEPARTED", "CANCELLED")).toBe(false);
     expect(canMoveVoyage("ARRIVED", "BOARDING")).toBe(false);
     expect(canMoveVoyage("CANCELLED", "SCHEDULED")).toBe(false);
+  });
+});
+
+describe("dayRange", () => {
+  it("covers exactly the local day, including 23-hour daylight-saving days", () => {
+    const manila = dayRange("2026-10-15", "Asia/Manila")!;
+    expect(manila.start.toISOString()).toBe("2026-10-14T16:00:00.000Z");
+    expect(manila.end.toISOString()).toBe("2026-10-15T16:00:00.000Z");
+    const sydney = dayRange("2026-10-04", "Australia/Sydney")!;
+    expect((sydney.end.getTime() - sydney.start.getTime()) / 3_600_000).toBe(23);
+  });
+
+  it("rejects dates that don't exist", () => {
+    expect(dayRange("2026-02-30", "UTC")).toBeNull();
+    expect(dayRange("tomorrow", "UTC")).toBeNull();
+  });
+
+  it("formats today in the operator's zone", () => {
+    expect(localDateString(new Date("2026-10-14T20:30:00Z"), "Asia/Manila")).toBe("2026-10-15");
+  });
+});
+
+describe("csv", () => {
+  it("quotes, escapes and defuses formulas", () => {
+    const out = toCsv([["a,b", 'say "hi"', "=SUM(A1)", 5, null]]);
+    expect(out).toBe('﻿"a,b","say ""hi""",\'=SUM(A1),5,\r\n');
+  });
+});
+
+describe("ticket codes", () => {
+  it("accepts genuine codes and rejects edited or invented ones", async () => {
+    const { ticketCode, readTicketCode } = await import("@/lib/ticket-code");
+    const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const code = ticketCode(id);
+    expect(readTicketCode(code)).toBe(id);
+    expect(readTicketCode(`  ${code}\n`)).toBe(id);
+    expect(readTicketCode(`https://app.example.com/t/${code}?x=1`)).toBe(id);
+    expect(readTicketCode(code.slice(0, -1) + (code.endsWith("A") ? "B" : "A"))).toBeNull();
+    expect(readTicketCode(code.replace(id, "1f8fad5b-d9cb-469f-a165-70867728950e"))).toBeNull();
+    expect(readTicketCode("HL1.not-a-uuid.sig")).toBeNull();
+    expect(readTicketCode("")).toBeNull();
+  });
+});
+
+describe("field presets", () => {
+  it("keeps chosen presets in order and any custom fields", async () => {
+    const { buildFieldSchema } = await import("@/lib/field-presets");
+    const custom = { key: "container_no", label: "Container number", type: "text" as const };
+    const out = buildFieldSchema("CARGO", ["weight", "contents", "bogus"], [custom, { key: "fragile", label: "Fragile", type: "boolean" }]);
+    expect(out.map((f) => f.key)).toEqual(["contents", "weight", "container_no"]);
   });
 });

@@ -3,6 +3,7 @@ import { adminDb, closeDb } from "@/db";
 import { rateLimit, resetRateLimit } from "@/lib/rate-limit";
 import { signSession, verifySession } from "@/lib/session";
 import { authenticate } from "@/server/credentials";
+import { clearThrottle, throttle } from "@/server/throttle";
 import { applySetupToken, describeSetupToken, issueSetupLink } from "@/server/setup-links";
 import { makeTenant } from "./helpers";
 
@@ -82,5 +83,24 @@ describe("setup links", () => {
     const token = new URL(await issueSetupLink(t.ownerUserId, "https://app.example.test")).searchParams.get("token")!;
     const results = await Promise.all([applySetupToken(token, "first-password-here"), applySetupToken(token, "second-password-here")]);
     expect(results.filter((r) => r.ok)).toHaveLength(1);
+  });
+});
+
+describe("throttle", () => {
+  it("counts attempts in the database, blocks past the limit, and clears", async () => {
+    const key = `test:${Math.random()}`;
+    for (let i = 0; i < 3; i++) expect((await throttle(key, 3, 60_000)).allowed).toBe(true);
+    const blocked = await throttle(key, 3, 60_000);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    await clearThrottle(key);
+    expect((await throttle(key, 3, 60_000)).allowed).toBe(true);
+  });
+
+  it("starts a fresh window once the old one has expired", async () => {
+    const key = `test:${Math.random()}`;
+    await throttle(key, 1, 1);
+    await new Promise((r) => setTimeout(r, 20));
+    expect((await throttle(key, 1, 60_000)).allowed).toBe(true);
   });
 });

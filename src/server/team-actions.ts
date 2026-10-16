@@ -3,15 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { PERMISSIONS } from "@/lib/domain";
-import { requirePermission } from "./auth";
+import { requireWrite } from "./auth";
 import type { ActionResult } from "./booking-actions";
 import { appBaseUrl } from "./base-url";
 import { BookingError } from "./bookings";
+import { inviteEmail, resetEmail } from "@/lib/email-templates";
+import { sendMail } from "./mail";
 import { issueSetupLink } from "./setup-links";
+import { SETUP_LINK_TTL_HOURS } from "@/lib/tokens";
 import { addMember, changeMemberRole, createRole, deleteRole, memberForReset, setMemberActive, updateRolePermissions } from "./team";
 
 async function guarded<T>(fn: (a: { tenantId: string; actorId: string }) => Promise<T>): Promise<ActionResult<T>> {
-  const auth = await requirePermission("team.manage");
+  const auth = await requireWrite("team.manage");
   try {
     const data = await fn({ tenantId: auth.tenantId, actorId: auth.userId });
     revalidatePath("/app/team");
@@ -27,7 +30,7 @@ const first = (r: { error: z.ZodError }) => r.error.issues[0]?.message ?? "Check
 const uuid = z.string().uuid("Pick a role");
 const permissionList = (f: FormData) => f.getAll("permissions").map(String).filter((p) => p in PERMISSIONS);
 
-export type InviteResult = { link: string; name: string; email: string };
+export type InviteResult = { link: string; name: string; email: string; emailed: boolean };
 
 /** Adds a person and returns a one-time link for them to choose a password. Shown once; it is not stored. */
 export async function addMemberAction(f: FormData): Promise<ActionResult<InviteResult>> {
@@ -36,9 +39,13 @@ export async function addMemberAction(f: FormData): Promise<ActionResult<InviteR
     .safeParse({ name: f.get("name"), email: f.get("email"), roleId: f.get("roleId") });
   if (!p.success) return { ok: false, error: first(p) };
   const base = await appBaseUrl();
+  const auth = await requireWrite("team.manage");
   return guarded(async (a) => {
     const { userId } = await addMember(a, p.data);
-    return { link: await issueSetupLink(userId, base), name: p.data.name, email: p.data.email.toLowerCase() };
+    const link = await issueSetupLink(userId, base);
+    const email = p.data.email.toLowerCase();
+    const emailed = await sendMail(email, inviteEmail({ name: p.data.name, operator: auth.tenant.name, inviter: auth.name, url: link, hours: SETUP_LINK_TTL_HOURS }));
+    return { link, name: p.data.name, email, emailed };
   });
 }
 
@@ -48,7 +55,9 @@ export async function resetLinkAction(membershipId: string): Promise<ActionResul
   const base = await appBaseUrl();
   return guarded(async (a) => {
     const who = await memberForReset(a, membershipId);
-    return { link: await issueSetupLink(who.userId, base), name: who.name, email: who.email };
+    const link = await issueSetupLink(who.userId, base);
+    const emailed = await sendMail(who.email, resetEmail({ name: who.name, url: link, hours: SETUP_LINK_TTL_HOURS }));
+    return { link, name: who.name, email: who.email, emailed };
   });
 }
 

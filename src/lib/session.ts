@@ -37,16 +37,24 @@ export async function signSession(payload: SessionPayload): Promise<string> {
     .sign(secretKey());
 }
 
-export async function verifySession(token: string | undefined): Promise<SessionPayload | null> {
+/** Like verifySession, but also says when the session was issued (seconds since 1970), so it can be compared with "sign out everywhere". */
+export async function verifySessionFull(token: string | undefined): Promise<{ session: SessionPayload; issuedAt: number } | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
     if (typeof payload.uid !== "string" || typeof payload.tid !== "string" || typeof payload.mid !== "string") return null;
-    return { uid: payload.uid, tid: payload.tid, mid: payload.mid };
+    return { session: { uid: payload.uid, tid: payload.tid, mid: payload.mid }, issuedAt: typeof payload.iat === "number" ? payload.iat : 0 };
   } catch {
     return null;
   }
 }
+
+export async function verifySession(token: string | undefined): Promise<SessionPayload | null> {
+  return (await verifySessionFull(token))?.session ?? null;
+}
+
+/** False when the session was issued before the person last signed out everywhere or changed their password. */
+export const sessionStillValid = (issuedAt: number, validFrom: Date) => issuedAt >= Math.floor(validFrom.getTime() / 1000);
 
 export const sessionCookieOptions = {
   httpOnly: true,

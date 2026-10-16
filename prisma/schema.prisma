@@ -25,6 +25,16 @@ model Tenant {
   status       String   @default("active")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  /// comped | trialing | active | past_due | canceled. "comped" means full access with no billing.
+  billingStatus        String    @default("comped") @map("billing_status")
+  trialEndsAt          DateTime? @map("trial_ends_at") @db.Timestamptz(6)
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz(6)
+  pastDueSince         DateTime? @map("past_due_since") @db.Timestamptz(6)
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  /// The operator's own connected Stripe account (ticket payments go straight to it).
+  stripeAccountId      String?   @unique @map("stripe_account_id")
+
   roles           Role[]
   memberships     Membership[]
   settings        TenantSetting[]
@@ -54,6 +64,8 @@ model User {
   name         String
   phone        String?
   passwordHash String   @map("password_hash")
+  /// Sessions issued before this moment are rejected: set by "sign out everywhere" and by changing the password.
+  sessionsValidFrom DateTime @default(dbgenerated("'1970-01-01 00:00:00+00'::timestamptz")) @map("sessions_valid_from") @db.Timestamptz(6)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   memberships  Membership[]
@@ -261,6 +273,7 @@ model Booking {
   customerId    String?  @map("customer_id") @db.Uuid
   contactName   String   @map("contact_name")
   contactPhone  String?  @map("contact_phone")
+  contactEmail  String?  @map("contact_email")
   status        String   @default("CONFIRMED")
   reviewReason  String?  @map("review_reason")
   currency      String
@@ -404,4 +417,14 @@ model AuditLog {
 
   @@index([tenantId, createdAt], map: "audit_tenant_created_idx")
   @@map("audit_logs")
+}
+
+/// Throttle counters shared by every server instance. Platform-level; only the admin connection touches it.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime @map("reset_at") @db.Timestamptz(6)
+
+  @@index([resetAt], map: "rate_limits_reset_idx")
+  @@map("rate_limits")
 }

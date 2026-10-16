@@ -42,6 +42,8 @@ export type TenantConfig = {
   oversellPercent: number;
   bookingPrefix: string;
   invoicePrefix: string;
+  /** Whether the public /book/<slug> page is switched on. */
+  publicBookingEnabled: boolean;
 };
 
 export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
@@ -59,6 +61,7 @@ export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
     oversellPercent: num("oversellPercent", DEFAULT_OVERSELL_PERCENT),
     bookingPrefix: str("bookingPrefix", "BK-"),
     invoicePrefix: str("invoicePrefix", "INV-"),
+    publicBookingEnabled: map.get("publicBookingEnabled") === true,
   };
 }
 

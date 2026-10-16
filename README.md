@@ -55,3 +55,8 @@ unless `ALLOW_DEMO_SEED=this-is-the-demo-database` is set. Tests refuse to conne
 Not built yet: online payments, a customer-facing booking page, email/SMS (until then, links are handed over by
 you or the owner), refunds, and a custom role editor.
 # freight-saas
+
+
+## Operations
+
+Environment variables, deploy steps, backups and the restore drill are in [docs/OPERATIONS.md](docs/OPERATIONS.md).
