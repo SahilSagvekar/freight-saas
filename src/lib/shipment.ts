@@ -98,3 +98,18 @@ export function parseDay(value: string | null | undefined): Date | null {
 }
 
 export const dayString = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
+
+export type LabelPiece = { n: number; of: number; packageType: string; description: string; marks: string | null };
+
+/** One entry per physical piece, numbered across the whole shipment ("3 of 14"). Stops at `cap` so a typo can't print thousands of labels. */
+export function labelPieces(lines: readonly PackageLine[], cap = 500): { pieces: LabelPiece[]; total: number; truncated: boolean } {
+  const total = lines.reduce((n, l) => n + l.quantity, 0);
+  const pieces: LabelPiece[] = [];
+  for (const l of lines) {
+    for (let i = 0; i < l.quantity && pieces.length < cap; i++) pieces.push({ n: pieces.length + 1, of: total, packageType: l.packageType, description: l.description, marks: l.marks });
+  }
+  return { pieces, total, truncated: total > cap };
+}
+
+/** The document title for a mode: the house bill is a Bill of Lading by sea, an air waybill by air, a consignment note by road. */
+export const TRANSPORT_DOC_TITLE: Record<ShipmentMode, string> = { OCEAN: "Bill of Lading", AIR: "House Air Waybill", GROUND: "Road Consignment Note" };

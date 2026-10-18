@@ -11,7 +11,7 @@ import { withTenant } from "@/db";
 import { MODE_LABELS, type TransportMode } from "@/lib/domain";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
-import { airChargeableKg, nextShipmentStatuses, packageTotals, SHIPMENT_STATUS_LABELS } from "@/lib/shipment";
+import { airChargeableKg, nextShipmentStatuses, packageTotals, SHIPMENT_STATUS_LABELS, TRANSPORT_DOC_TITLE, type ShipmentMode } from "@/lib/shipment";
 import { requirePermission } from "@/server/auth";
 import { setShipmentStatusAction } from "@/server/shipment-actions";
 import { formatInquiryNo, formatShipmentNo } from "@/server/shared";
@@ -131,6 +131,15 @@ export default async function ShipmentPage({ params }: PageProps<"/app/shipments
               ) : (
                 <p className="text-sm text-muted">{next.length === 0 ? "No further steps." : "You can view but not change the status."}</p>
               )}
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Documents" description="Opens a print-ready page. Choose Save as PDF in the print window to get a file." />
+            <CardBody className="flex flex-col gap-2">
+              <ButtonLink href={`/app/shipments/${s.id}/bol`} variant="secondary">{TRANSPORT_DOC_TITLE[s.mode as ShipmentMode] ?? "Bill of Lading"}</ButtonLink>
+              <ButtonLink href={`/app/shipments/${s.id}/packing-list`} variant="secondary">Packing list</ButtonLink>
+              <ButtonLink href={`/app/shipments/${s.id}/invoice`} variant="secondary">Commercial invoice</ButtonLink>
+              <ButtonLink href={`/app/shipments/${s.id}/labels`} variant="secondary">Cargo labels ({totals.pieces})</ButtonLink>
             </CardBody>
           </Card>
           <Card>

@@ -29,7 +29,7 @@ export default async function ReviewPage() {
                   <Link href={`/app/bookings/${b.id}`} className="font-semibold text-brand-700 hover:underline">{formatBookingNo(config, b.bookingNo)}</Link>
                   <span className="ml-2 text-sm text-muted">{b.contactName} · {formatMoney(b.total, b.currency, auth.tenant.locale)}</span>
                   <p className="mt-1 text-sm text-muted">{b.originName} → {b.destinationName} · {formatDeparture(b.departureAt)}</p>
-                  <p className="mt-2 rounded-md bg-warn-50 px-3 py-2 text-sm text-warn-700">{b.reviewReason}</p>
+                  <p className="mt-2 rounded-md bg-warn-50 px-3 py-2 text-sm text-warn-600">{b.reviewReason}</p>
                 </div>
                 <ReviewButtons bookingId={b.id} />
               </div>

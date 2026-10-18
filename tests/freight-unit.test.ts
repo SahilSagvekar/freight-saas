@@ -90,3 +90,33 @@ describe("shipment dates in the schema", () => {
     expect(shipmentSchema.safeParse(payload).success).toBe(false);
   });
 });
+
+import { labelPieces } from "@/lib/shipment";
+import { readTrackingCode, trackingCode } from "@/lib/tracking-code";
+
+describe("labels", () => {
+  const line = (quantity: number) => ({ quantity, packageType: "Carton", description: "x", lengthCm: null, widthCm: null, heightCm: null, grossWeightKg: null, marks: null, hsCode: null, declaredValue: null });
+  it("numbers pieces across lines", () => {
+    const { pieces, total } = labelPieces([line(2), line(3)]);
+    expect(total).toBe(5);
+    expect(pieces.map((p) => `${p.n}/${p.of}`)).toEqual(["1/5", "2/5", "3/5", "4/5", "5/5"]);
+  });
+  it("caps runaway quantities", () => {
+    const r = labelPieces([line(100000)], 500);
+    expect(r.pieces).toHaveLength(500);
+    expect(r.truncated).toBe(true);
+    expect(r.total).toBe(100000);
+  });
+});
+
+describe("tracking codes", () => {
+  const id = "0b5f5f0e-6a2e-4d1c-9f3a-2f1d9e7c1a11";
+  it("round-trips and rejects tampering", () => {
+    const code = trackingCode(id);
+    expect(readTrackingCode(code)).toBe(id);
+    expect(readTrackingCode(`https://x.test/track/${encodeURIComponent(code)}`)).toBe(id);
+    expect(readTrackingCode(code.slice(0, -1) + (code.endsWith("a") ? "b" : "a"))).toBeNull();
+    expect(readTrackingCode(code.replace(id, "0b5f5f0e-6a2e-4d1c-9f3a-2f1d9e7c1a12"))).toBeNull();
+    expect(readTrackingCode("HL1." + code.split(".").slice(1).join("."))).toBeNull();
+  });
+});
