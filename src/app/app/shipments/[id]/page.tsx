@@ -115,7 +115,7 @@ export default async function ShipmentPage({ params }: PageProps<"/app/shipments
 
         <div className="space-y-6">
           <Card>
-            <CardHeader title="Status" />
+            <CardHeader title="Status" description={`Customers can follow progress at the tracking link on your labels.`} />
             <CardBody className="space-y-4">
               {canMove && next.length > 0 ? (
                 <div className="space-y-3">
@@ -125,6 +125,7 @@ export default async function ShipmentPage({ params }: PageProps<"/app/shipments
                       <input type="hidden" name="status" value={to} />
                       <Input name="location" aria-label="Where (optional)" placeholder="Where? (optional)" maxLength={160} />
                       <Input name="note" aria-label="Note (optional)" placeholder="Note (optional)" maxLength={500} />
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="notify" className="size-4" />Email the customer</label>
                     </ActionForm>
                   ))}
                 </div>

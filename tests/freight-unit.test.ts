@@ -120,3 +120,64 @@ describe("tracking codes", () => {
     expect(readTrackingCode("HL1." + code.split(".").slice(1).join("."))).toBeNull();
   });
 });
+
+import { parseCsv } from "@/lib/csv-parse";
+import { inquiriesCsv, shipmentsCsv } from "@/lib/freight-csv";
+import { importTemplateRows, readShipmentCsv } from "@/lib/shipment-import";
+import { toCsv } from "@/lib/csv";
+
+describe("csv parsing", () => {
+  it("reads quotes, commas, line breaks, BOM and CRLF", () => {
+    const rows = parseCsv('﻿a,b,c\r\n"x, y","say ""hi""","line1\nline2"\r\n\r\n');
+    expect(rows).toEqual([["a", "b", "c"], ["x, y", 'say "hi"', "line1\nline2"]]);
+  });
+  it("detects semicolons", () => {
+    expect(parseCsv("a;b\n1;2")).toEqual([["a", "b"], ["1", "2"]]);
+  });
+  it("round-trips what we write", () => {
+    const rows = [["a", "b"], ["x,y", 'q"r']];
+    expect(parseCsv(toCsv(rows))).toEqual(rows);
+  });
+});
+
+describe("shipment import", () => {
+  it("accepts the template's own example row", () => {
+    const r = readShipmentCsv(toCsv(importTemplateRows()), "USD");
+    expect(r.errors).toEqual([]);
+    expect(r.shipments).toHaveLength(1);
+    expect(r.shipments[0]!.packages[0]!.declaredValue).toBe(1580000);
+    expect(r.shipments[0]!.mode).toBe("OCEAN");
+  });
+  it("reports row numbers for bad rows and missing columns", () => {
+    const head = importTemplateRows()[0]!;
+    const good = importTemplateRows()[1]!;
+    const bad = [...good];
+    bad[head.indexOf("weight_kg")] = "heavy";
+    const bad2 = [...good];
+    bad2[head.indexOf("consignee_name")] = "";
+    const r = readShipmentCsv(toCsv([head, good, bad, bad2]), "USD");
+    expect(r.errors).toHaveLength(2);
+    expect(r.errors[0]).toMatch(/^Row 3:.*weight_kg/);
+    expect(r.errors[1]).toMatch(/^Row 4:/);
+    expect(readShipmentCsv("origin,destination\nA,B", "USD").errors[0]).toMatch(/Missing columns/);
+    expect(readShipmentCsv("", "USD").errors).toHaveLength(1);
+  });
+  it("understands mode words", () => {
+    const head = importTemplateRows()[0]!;
+    const row = [...importTemplateRows()[1]!];
+    row[head.indexOf("mode")] = "Road";
+    expect(readShipmentCsv(toCsv([head, row]), "USD").shipments[0]!.mode).toBe("GROUND");
+  });
+});
+
+describe("freight exports", () => {
+  it("neutralises spreadsheet formulas from customer text", () => {
+    const csv = inquiriesCsv([{ inquiryNo: 1, status: "NEW", name: "=HYPERLINK(1)", company: null, email: "a@b.co", phone: null, mode: "AIR", origin: "A", destination: "B", cargo: "c", weightKg: 5, readyOn: null, message: null, createdAt: new Date("2026-01-01") }], (n) => `INQ-${n}`);
+    expect(csv).toContain("'=HYPERLINK(1)");
+  });
+  it("totals pieces and weight per shipment", () => {
+    const csv = shipmentsCsv([{ shipmentNo: 7, status: "BOOKED", mode: "OCEAN", customerRef: null, shipper: { name: "S" }, consignee: { name: "C" }, origin: "A", destination: "B", incoterm: null, carrier: null, masterNo: null, houseNo: null, containerNo: null, etd: null, eta: null, goods: "g", currency: "USD", createdAt: new Date("2026-01-01"), packages: [{ quantity: 2, lengthCm: null, widthCm: null, heightCm: null, grossWeightKg: 10, declaredValue: 500 }, { quantity: 3, lengthCm: null, widthCm: null, heightCm: null, grossWeightKg: 5, declaredValue: null }] }], (n) => `SH-${n}`);
+    expect(csv).toContain("SH-7,Booked,Ocean");
+    expect(csv).toContain(",5,15,0,5.00,USD,");
+  });
+});

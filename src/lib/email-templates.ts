@@ -74,3 +74,14 @@ export function inquiryReceivedEmail(p: { name: string; operator: string; messag
     html: shell(`We received your request`, [`Hi ${p.name},`, p.message, `For: ${p.route}`], undefined, p.operator),
   };
 }
+
+export function shipmentStatusEmail(p: { operator: string; shipmentNo: string; statusLabel: string; route: string; location?: string | null; note?: string | null; url: string }): Email {
+  const where = p.location ? ` (${p.location})` : "";
+  const line = `Your shipment ${p.shipmentNo} (${p.route}) is now: ${p.statusLabel}${where}.`;
+  const note = p.note ? `Note from ${p.operator}: ${p.note}` : undefined;
+  return {
+    subject: `${p.shipmentNo}: ${p.statusLabel}`,
+    text: `${line}\n\n${note ? `${note}\n\n` : ""}Track it any time:\n${p.url}\n\n${p.operator}\n`,
+    html: shell(`Shipment ${p.shipmentNo}: ${p.statusLabel}`, note ? [line, note] : [line], { label: "Track this shipment", url: p.url }, p.operator),
+  };
+}
