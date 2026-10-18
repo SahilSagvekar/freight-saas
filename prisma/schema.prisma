@@ -23,6 +23,8 @@ model Tenant {
   timeZone     String   @default("UTC") @map("time_zone")
   plan         String   @default("starter")
   status       String   @default("active")
+  /// ferry | freight. Decides which screens a workspace shows.
+  workspaceKind String  @default("ferry") @map("workspace_kind")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   /// comped | trialing | active | past_due | canceled. "comped" means full access with no billing.

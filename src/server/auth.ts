@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { withTenant } from "@/db";
-import type { Permission } from "@/lib/domain";
+import type { Permission, WorkspaceKind } from "@/lib/domain";
 import { billingAccess, type Access, type BillingStatus } from "@/lib/billing";
 import { SESSION_COOKIE, sessionStillValid, verifySessionFull } from "@/lib/session";
 
@@ -14,7 +14,7 @@ export type AuthContext = {
   email: string;
   roleName: string;
   permissions: Set<Permission>;
-  tenant: { id: string; name: string; baseCurrency: string; locale: string; timeZone: string; plan: string; billingStatus: BillingStatus; stripeAccountId: string | null };
+  tenant: { id: string; name: string; baseCurrency: string; locale: string; timeZone: string; plan: string; billingStatus: BillingStatus; stripeAccountId: string | null; workspaceKind: WorkspaceKind };
   billing: Access;
 };
 
@@ -70,6 +70,7 @@ export const getAuth = cache(async (): Promise<AuthContext | null> => {
       plan: loaded.tenant.plan,
       billingStatus: loaded.tenant.billingStatus as BillingStatus,
       stripeAccountId: loaded.tenant.stripeAccountId,
+      workspaceKind: loaded.tenant.workspaceKind === "freight" ? "freight" : "ferry",
     },
     billing: billingAccess({
       status: loaded.tenant.billingStatus as BillingStatus,

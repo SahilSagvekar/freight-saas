@@ -40,6 +40,27 @@ describe("portals", () => {
     expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/desk", "/app/voyages", "/app/bookings", "/app/inquiries", "/app/checkin", "/app/reports", "/app/review", "/app/team", "/app/settings", "/app/billing"]);
   });
 
+  it("gives freight workspaces freight links and homes, and no ferry pages", () => {
+    const hrefs = (p: Permission[]) => navFor(p, "freight").map((i) => i.href);
+    expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/inquiries", "/app/quotes", "/app/shipments", "/app/invoices", "/app/data", "/app/team", "/app/settings", "/app/billing"]);
+    expect(hrefs(role("Booking agent"))).toEqual(["/app/inquiries", "/app/quotes", "/app/shipments"]);
+    expect(hrefs(role("Dock crew"))).toEqual(["/app/shipments"]);
+    expect(hrefs(role("Cashier"))).toEqual(["/app/shipments", "/app/invoices"]);
+    expect(homeFor(role("Booking agent"), "freight")).toBe("/app/shipments");
+    expect(homeFor(role("Dock crew"), "freight")).toBe("/app/shipments");
+    expect(homeFor(role("Cashier"), "freight")).toBe("/app/invoices");
+    expect(homeFor(role("Owner"), "freight")).toBe("/app");
+    for (const r of ["Owner", "Manager", "Booking agent", "Dock crew", "Cashier"]) {
+      expect(hrefs(role(r))).not.toContain("/app/desk");
+      expect(hrefs(role(r))).not.toContain("/app/voyages");
+    }
+  });
+
+  it("keeps ferry workspaces exactly as they were", () => {
+    expect(homeFor(role("Booking agent"))).toBe("/app/desk");
+    expect(homeFor(role("Booking agent"), "ferry")).toBe("/app/desk");
+  });
+
   it("does not send a team-only role to a page that needs booking.view", () => {
     expect(homeFor(["team.manage"])).toBe("/app/team");
   });

@@ -1,4 +1,4 @@
-import type { Permission } from "./domain";
+import type { Permission, WorkspaceKind } from "./domain";
 
 /**
  * Each person lands in the portal their role fits. Portals are not stored anywhere: they are worked out
@@ -29,33 +29,46 @@ export const PORTAL_LABEL: Record<PortalKind, string> = {
 };
 
 /** Where `/app` sends each portal. Owners and managers stay on the dashboard. */
-export function homeFor(perms: Perms): string | null {
+export function homeFor(perms: Perms, kind: WorkspaceKind = "ferry"): string | null {
   const portal = portalFor(perms);
   const canSee = has(perms, "booking.view");
+  const freight = kind === "freight";
   switch (portal) {
     case "owner":
     case "manager":
       return canSee ? "/app" : has(perms, "team.manage") ? "/app/team" : has(perms, "settings.manage") ? "/app/settings" : null;
     case "desk":
-      return "/app/desk";
+      return freight ? (canSee ? "/app/shipments" : "/app/inquiries") : "/app/desk";
     case "dock":
-      return canSee ? "/app/voyages" : null;
+      return canSee ? (freight ? "/app/shipments" : "/app/voyages") : null;
     case "cashier":
     case "viewer":
+      if (freight) return has(perms, "invoice.view") ? "/app/invoices" : canSee ? "/app/shipments" : null;
       return canSee ? "/app/bookings" : null;
     default:
       return null;
   }
 }
 
-export type NavIcon = "dashboard" | "voyages" | "bookings" | "review" | "settings" | "desk" | "team" | "reports" | "checkin" | "billing" | "inquiries";
+export type NavIcon = "dashboard" | "voyages" | "bookings" | "review" | "settings" | "desk" | "team" | "reports" | "checkin" | "billing" | "inquiries" | "shipments" | "quotes" | "invoices" | "data";
 export type NavEntry = { href: string; label: string; icon: NavIcon };
 
 /** Sidebar links for a set of permissions. Each link appears only when its page would let the person in. */
-export function navFor(perms: Perms): NavEntry[] {
+export function navFor(perms: Perms, kind: WorkspaceKind = "ferry"): NavEntry[] {
   const items: NavEntry[] = [];
-  const homeIsDashboard = homeFor(perms) === "/app";
+  const homeIsDashboard = homeFor(perms, kind) === "/app";
   if (homeIsDashboard) items.push({ href: "/app", label: "Dashboard", icon: "dashboard" });
+  if (kind === "freight") {
+    if (has(perms, "booking.create")) items.push({ href: "/app/inquiries", label: "Inquiries", icon: "inquiries" });
+    if (has(perms, "booking.create")) items.push({ href: "/app/quotes", label: "Quotes", icon: "quotes" });
+    if (has(perms, "booking.view")) items.push({ href: "/app/shipments", label: "Shipments", icon: "shipments" });
+    if (has(perms, "invoice.view")) items.push({ href: "/app/invoices", label: "Invoices", icon: "invoices" });
+    if (has(perms, "settings.manage")) items.push({ href: "/app/data", label: "Import & export", icon: "data" });
+    if (has(perms, "team.manage")) items.push({ href: "/app/team", label: "Team", icon: "team" });
+    if (has(perms, "settings.manage")) items.push({ href: "/app/settings", label: "Settings", icon: "settings" });
+    if (has(perms, "settings.manage")) items.push({ href: "/app/billing", label: "Billing", icon: "billing" });
+    return items;
+  }
   if (has(perms, "booking.create")) items.push({ href: "/app/desk", label: "Ticket desk", icon: "desk" });
   if (has(perms, "booking.view")) {
     items.push({ href: "/app/voyages", label: "Voyages", icon: "voyages" });

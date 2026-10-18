@@ -3,7 +3,7 @@ import type { Tx } from "@/db";
 import { DEFAULT_OVERSELL_PERCENT } from "@/lib/domain";
 
 /** Next per-tenant sequence value. The upsert locks the counter row, so concurrent callers never collide. */
-export async function nextNumber(tx: Tx, tenantId: string, key: "booking" | "invoice" | "voyage" | "inquiry"): Promise<number> {
+export async function nextNumber(tx: Tx, tenantId: string, key: "booking" | "invoice" | "voyage" | "inquiry" | "shipment" | "quote" | "freight_invoice"): Promise<number> {
   // Raw on purpose: Prisma's upsert is not always a single atomic INSERT ... ON CONFLICT.
   const [row] = await tx.$queryRaw<{ value: number }[]>`
     insert into counters (tenant_id, key, value) values (${tenantId}::uuid, ${key}, 1)
@@ -50,6 +50,15 @@ export type TenantConfig = {
   inquiryNotify: string;
   /** What the visitor sees after sending the form. */
   inquiryThanks: string;
+  /** Freight documents, quotes and invoices. */
+  company: { address: string; phone: string; email: string; taxId: string };
+  /** Printed at the foot of the Bill of Lading and other documents. */
+  documentTerms: string;
+  /** Default tax on quotes and invoices, in basis points (1200 = 12%). */
+  freightTaxBp: number;
+  quoteValidDays: number;
+  invoiceDueDays: number;
+  invoiceNote: string;
 };
 
 export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
@@ -71,6 +80,12 @@ export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
     inquiryEnabled: map.get("inquiryEnabled") === true,
     inquiryNotify: str("inquiryNotify", ""),
     inquiryThanks: str("inquiryThanks", "Thank you. We have your request and will get back to you soon."),
+    company: { address: str("docCompanyAddress", ""), phone: str("docCompanyPhone", ""), email: str("docCompanyEmail", ""), taxId: str("docCompanyTaxId", "") },
+    documentTerms: str("docTerms", ""),
+    freightTaxBp: num("freightTaxBp", 0),
+    quoteValidDays: num("quoteValidDays", 14),
+    invoiceDueDays: num("invoiceDueDays", 14),
+    invoiceNote: str("invoiceNote", ""),
   };
 }
 
@@ -85,4 +100,7 @@ export async function setTenantSetting(tx: Tx, tenantId: string, key: string, va
 
 export const formatBookingNo = (config: TenantConfig, n: number) => `${config.bookingPrefix}${String(n).padStart(5, "0")}`;
 export const formatInquiryNo = (n: number) => `INQ-${String(n).padStart(5, "0")}`;
+export const formatShipmentNo = (n: number) => `SH-${String(n).padStart(5, "0")}`;
+export const formatQuoteNo = (n: number) => `Q-${String(n).padStart(5, "0")}`;
+export const formatFreightInvoiceNo = (n: number) => `FI-${String(n).padStart(5, "0")}`;
 export const formatInvoiceNo = (config: TenantConfig, n: number) => `${config.invoicePrefix}${String(n).padStart(5, "0")}`;

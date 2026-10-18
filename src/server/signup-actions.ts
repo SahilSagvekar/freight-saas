@@ -21,6 +21,7 @@ const schema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email").max(200),
   region: z.string().refine((c) => !!regionByCode(c), "Choose where you operate"),
   plan: z.string().refine((p) => !!planById(p), "Choose a plan"),
+  kind: z.enum(["freight", "ferry"], { error: "Choose what your company does" }),
   terms: z.literal("on", { error: "Please accept the terms to continue" }),
 });
 
@@ -33,7 +34,7 @@ export async function signupAction(_prev: SignupState, f: FormData): Promise<Sig
   // Without email we can't confirm the address belongs to the person, so live sign-ups stay closed until it is set up.
   if (process.env.NODE_ENV === "production" && !mail && process.env.ALLOW_UNVERIFIED_SIGNUP !== "1") return { error: "Sign-ups aren't open yet. Please contact us and we'll set you up." };
 
-  const parsed = schema.safeParse({ operator: f.get("operator"), name: f.get("name"), email: f.get("email"), region: f.get("region"), plan: f.get("plan"), terms: f.get("terms") });
+  const parsed = schema.safeParse({ operator: f.get("operator"), name: f.get("name"), email: f.get("email"), region: f.get("region"), plan: f.get("plan"), kind: f.get("kind") ?? "freight", terms: f.get("terms") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
   const d = parsed.data;
 
@@ -52,6 +53,7 @@ export async function signupAction(_prev: SignupState, f: FormData): Promise<Sig
       locale: region.locale,
       timeZone: region.timeZone,
       owner: { name: d.name, email: d.email },
+      workspaceKind: d.kind,
       billing: { plan: d.plan as "starter" | "operator", status: "trialing", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) },
     });
   } catch (e) {

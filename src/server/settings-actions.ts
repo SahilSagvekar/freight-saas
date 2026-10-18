@@ -121,3 +121,43 @@ export async function disconnectStripeAction(): Promise<void> {
   await adminDb().tenant.update({ where: { id: auth.tenantId }, data: { stripeAccountId: null } });
   revalidatePath("/app/settings");
 }
+
+/** Company details and defaults for freight documents, quotes and invoices. */
+export async function saveFreightSettingsAction(f: FormData): Promise<ActionResult> {
+  const p = z
+    .object({
+      address: z.string().trim().max(500),
+      phone: z.string().trim().max(60),
+      email: z.string().trim().max(200).refine((v) => v === "" || /^\S+@\S+\.\S+$/.test(v), "Enter a valid company email"),
+      taxId: z.string().trim().max(60),
+      terms: z.string().trim().max(4000),
+      taxPercent: z.coerce.number().min(0, "Tax can't be negative").max(100, "Tax can't be more than 100%"),
+      validDays: z.coerce.number().int().min(1, "Quotes must be valid for at least 1 day").max(365),
+      dueDays: z.coerce.number().int().min(0, "Enter 0 or more days").max(365),
+      invoiceNote: z.string().trim().max(1000),
+    })
+    .safeParse({
+      address: text(f, "address"),
+      phone: text(f, "phone"),
+      email: text(f, "email"),
+      taxId: text(f, "taxId"),
+      terms: text(f, "terms"),
+      taxPercent: text(f, "taxPercent") || "0",
+      validDays: text(f, "validDays") || "14",
+      dueDays: text(f, "dueDays") || "14",
+      invoiceNote: text(f, "invoiceNote"),
+    });
+  if (!p.success) return { ok: false, error: first(p) };
+  const d = p.data;
+  return guarded("settings.manage", async (c, tx) => {
+    await setTenantSetting(tx, c.tenantId, "docCompanyAddress", d.address);
+    await setTenantSetting(tx, c.tenantId, "docCompanyPhone", d.phone);
+    await setTenantSetting(tx, c.tenantId, "docCompanyEmail", d.email);
+    await setTenantSetting(tx, c.tenantId, "docCompanyTaxId", d.taxId);
+    await setTenantSetting(tx, c.tenantId, "docTerms", d.terms);
+    await setTenantSetting(tx, c.tenantId, "freightTaxBp", Math.round(d.taxPercent * 100));
+    await setTenantSetting(tx, c.tenantId, "quoteValidDays", d.validDays);
+    await setTenantSetting(tx, c.tenantId, "invoiceDueDays", d.dueDays);
+    await setTenantSetting(tx, c.tenantId, "invoiceNote", d.invoiceNote);
+  }, "Saved");
+}

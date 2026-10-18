@@ -38,6 +38,17 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
       <Field label="Company name" htmlFor="operator"><Input id="operator" name="operator" required maxLength={80} autoFocus placeholder="e.g. Blue Lagoon Ferries" /></Field>
       <Field label="Your name" htmlFor="name"><Input id="name" name="name" required maxLength={80} autoComplete="name" /></Field>
       <Field label="Work email" htmlFor="email"><Input id="email" name="email" type="email" required autoComplete="email" /></Field>
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">What does your company do?</legend>
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-3 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+          <input type="radio" name="kind" value="freight" defaultChecked className="accent-brand-600" />
+          <span><span className="font-medium">Freight forwarding</span> <span className="text-muted">· inquiries, quotes, shipments and documents</span></span>
+        </label>
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-3 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+          <input type="radio" name="kind" value="ferry" className="accent-brand-600" />
+          <span><span className="font-medium">Ferry or passenger boat</span> <span className="text-muted">· tickets and manifests</span></span>
+        </label>
+      </fieldset>
       <Field label="Where do you operate?" htmlFor="region" hint="Sets your currency and time zone.">
         <Select id="region" name="region" required defaultValue="">
           <option value="" disabled>Choose a country…</option>

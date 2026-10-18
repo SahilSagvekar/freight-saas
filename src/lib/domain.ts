@@ -41,6 +41,9 @@ export type FieldDef = {
 
 export type Capacities = Record<ItemKind, number>;
 
+export const WORKSPACE_KINDS = ["ferry", "freight"] as const;
+export type WorkspaceKind = (typeof WORKSPACE_KINDS)[number];
+
 export const TRANSPORT_MODES = ["AIR", "OCEAN", "GROUND", "UNSURE"] as const;
 export type TransportMode = (typeof TRANSPORT_MODES)[number];
 export const MODE_LABELS: Record<TransportMode, string> = { AIR: "Air freight", OCEAN: "Ocean freight", GROUND: "Ground freight", UNSURE: "Not sure yet" };

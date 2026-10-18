@@ -14,7 +14,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { connectConfigured } from "@/server/stripe";
 import { appBaseUrl } from "@/server/base-url";
-import { disconnectStripeAction, saveOnlineBookingAction } from "@/server/settings-actions";
+import { disconnectStripeAction, saveFreightSettingsAction, saveOnlineBookingAction } from "@/server/settings-actions";
 import { addItemTypeAction, addLocationAction, addTaxAction, addVesselAction, saveGeneralAction, setItemFieldsAction, setPriceAction } from "@/server/settings-actions";
 import { saveInquirySettingsAction } from "@/server/inquiry-actions";
 import { mailConfigured } from "@/server/mail";
@@ -39,12 +39,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const bookingUrl = `${base}/book/${slug}`;
   const inquiryUrl = `${base}/inquire/${slug}`;
   const embedSnippet = `<iframe src="${inquiryUrl}" title="Request a quote" width="100%" height="900" style="border:0;max-width:640px"></iframe>`;
+  const freight = auth.tenant.workspaceKind === "freight";
   const anyRoute = (id: string) => data.prices.find((p) => p.itemTypeId === id && !p.originId && !p.destinationId)?.unitPrice;
 
   return (
     <>
-      <PageHeader title="Settings" description={`Prices are in ${cur}. Changes apply to new bookings only; existing bookings keep the price they were sold at.`} />
+      <PageHeader title="Settings" description={freight ? `Amounts are in ${cur}.` : `Prices are in ${cur}. Changes apply to new bookings only; existing bookings keep the price they were sold at.`} />
       <div className="space-y-6">
+        {!freight && (<>
         <Card>
           <CardHeader title="Details to ask for" description="Tick what staff must record when they sell each item. Weight and consignee also appear on the freight waybill." />
           <div className="divide-y divide-line">
@@ -190,6 +192,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </CardBody>
         </Card>
 
+        </>)}
         <Card>
           <CardHeader title="Website inquiry form" description="A quote-request form you can put on your own website. Requests arrive under Inquiries." />
           <CardBody className="space-y-4">
@@ -210,6 +213,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             )}
           </CardBody>
         </Card>
+
+        {freight && (
+          <Card>
+            <CardHeader title="Company details and defaults" description="Printed on Bills of Lading, packing lists, quotes and invoices." />
+            <CardBody>
+              <ActionForm action={saveFreightSettingsAction} reset={false} submitLabel="Save">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Address" htmlFor="co-address" className="sm:col-span-2"><Textarea id="co-address" name="address" rows={3} maxLength={500} defaultValue={data.config.company.address} /></Field>
+                  <Field label="Phone" htmlFor="co-phone"><Input id="co-phone" name="phone" maxLength={60} defaultValue={data.config.company.phone} /></Field>
+                  <Field label="Company email" htmlFor="co-email"><Input id="co-email" name="email" type="email" maxLength={200} defaultValue={data.config.company.email} /></Field>
+                  <Field label="Tax or registration number" htmlFor="co-tax" className="sm:col-span-2"><Input id="co-tax" name="taxId" maxLength={60} defaultValue={data.config.company.taxId} /></Field>
+                  <Field label="Tax on quotes and invoices (%)" htmlFor="co-taxpct" hint="Use 0 if you don't charge tax."><Input id="co-taxpct" name="taxPercent" inputMode="decimal" defaultValue={data.config.freightTaxBp / 100} /></Field>
+                  <Field label="Quotes are valid for (days)" htmlFor="co-valid"><Input id="co-valid" name="validDays" type="number" min={1} max={365} defaultValue={data.config.quoteValidDays} /></Field>
+                  <Field label="Invoices are due in (days)" htmlFor="co-due"><Input id="co-due" name="dueDays" type="number" min={0} max={365} defaultValue={data.config.invoiceDueDays} /></Field>
+                  <Field label="Note on invoices" htmlFor="co-note" hint="For example your bank details."><Textarea id="co-note" name="invoiceNote" rows={2} maxLength={1000} defaultValue={data.config.invoiceNote} /></Field>
+                  <Field label="Terms printed on the Bill of Lading and other documents" htmlFor="co-terms" className="sm:col-span-2" hint="Use the wording your lawyer or carrier gives you. Harborline does not supply legal terms."><Textarea id="co-terms" name="terms" rows={5} maxLength={4000} defaultValue={data.config.documentTerms} /></Field>
+                </div>
+              </ActionForm>
+            </CardBody>
+          </Card>
+        )}
       </div>
     </>
   );

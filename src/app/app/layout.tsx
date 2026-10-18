@@ -7,7 +7,7 @@ import { logoutAction } from "@/server/session-actions";
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const auth = await requireAuth();
-  const items = navFor(auth.permissions);
+  const items = navFor(auth.permissions, auth.tenant.workspaceKind);
   const portal = portalFor(auth.permissions);
 
   return (

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { adminTransaction } from "@/db";
 import type { Prisma } from "@/generated/prisma/client";
-import { DEFAULT_ROLES, type FieldDef, type ItemKind } from "@/lib/domain";
+import { DEFAULT_ROLES, type FieldDef, type ItemKind, type WorkspaceKind } from "@/lib/domain";
 import { toMinor } from "@/lib/money";
 import { hashPassword } from "@/lib/password";
 import { setTenantSetting } from "./shared";
@@ -19,6 +19,8 @@ export type ProvisionInput = {
   owner: { name: string; email: string; password?: string; phone?: string };
   /** Sets up a trial or a paid state at creation. Left out, the operator is "comped": full access, no billing. */
   billing?: { plan: "starter" | "operator"; status: "trialing" | "active" | "comped"; trialEndsAt?: Date };
+  /** What the workspace is for. Defaults to "ferry", which is what every operator created before freight existed is. */
+  workspaceKind?: WorkspaceKind;
   /** Seeds a placeholder price list. Off by default: a real operator enters their own ports, boats and prices. */
   starterCatalog?: boolean;
 };
@@ -101,6 +103,7 @@ export async function provisionTenant(input: ProvisionInput) {
         baseCurrency,
         locale: input.locale ?? "en",
         timeZone: input.timeZone ?? "UTC",
+        workspaceKind: input.workspaceKind ?? "ferry",
         ...(input.billing ? { plan: input.billing.plan, billingStatus: input.billing.status, trialEndsAt: input.billing.trialEndsAt ?? null } : {}),
       },
     });

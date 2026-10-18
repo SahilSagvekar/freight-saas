@@ -15,7 +15,7 @@ export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const auth = await requireAuth();
-  const home = homeFor(auth.permissions);
+  const home = homeFor(auth.permissions, auth.tenant.workspaceKind);
   // Desk, dock and cashier roles have their own first screen. A role with nothing at all stays here, so there is no redirect loop.
   if (home && home !== "/app") redirect(home);
   if (!home) {

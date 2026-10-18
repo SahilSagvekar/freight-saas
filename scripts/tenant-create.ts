@@ -5,6 +5,8 @@
  *   npm run tenant:create -- --name "Island Ferries" --owner-name "Maya Collins" --email maya@example.com \
  *     --currency USD --timezone America/Nassau
  *
+ * Add --kind freight for a freight forwarder (the default is ferry).
+ *
  * Needs ADMIN_DATABASE_URL, SESSION_SECRET (the same value the live app uses) and APP_URL (the live site's address).
  */
 import { parseArgs } from "node:util";
@@ -30,6 +32,7 @@ async function main() {
       slug: { type: "string" },
       "app-url": { type: "string" },
       starter: { type: "boolean", default: false },
+      kind: { type: "string", default: "ferry" },
     },
   });
 
@@ -39,6 +42,7 @@ async function main() {
   if (!name || !ownerName || !email) fail('Required: --name "Company" --owner-name "Full Name" --email owner@example.com');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(`"${email}" is not a valid email address.`);
 
+  const kind = values.kind === "freight" ? "freight" : values.kind === "ferry" ? "ferry" : fail(`--kind must be "freight" or "ferry".`);
   const currency = (values.currency ?? "USD").toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) fail(`"${currency}" is not a 3-letter currency code.`);
   const timeZone = values.timezone ?? "UTC";
@@ -64,6 +68,7 @@ async function main() {
     locale: values.locale,
     timeZone,
     owner: { name: ownerName, email },
+    workspaceKind: kind,
     starterCatalog: values.starter === true,
   });
   const link = await issueSetupLink(created.ownerUserId, appUrl);
