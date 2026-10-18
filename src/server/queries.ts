@@ -147,22 +147,3 @@ export async function bookingFormData(tx: Tx) {
 }
 export type BookingFormData = Awaited<ReturnType<typeof bookingFormData>>;
 
-export type SetupStep = { key: "location" | "vessel" | "itemType" | "voyage" | "team"; done: boolean };
-
-/** What a brand-new operator still has to set up before they can sell a ticket. */
-export async function setupProgress(tx: Tx): Promise<SetupStep[]> {
-  const [locations, vessels, itemTypes, voyages, members] = await Promise.all([
-    tx.location.count({ where: { active: true } }),
-    tx.vessel.count({ where: { active: true } }),
-    tx.itemType.count(),
-    tx.voyage.count(),
-    tx.membership.count({ where: { status: "active" } }),
-  ]);
-  return [
-    { key: "location", done: locations >= 2 },
-    { key: "vessel", done: vessels >= 1 },
-    { key: "itemType", done: itemTypes >= 1 },
-    { key: "voyage", done: voyages >= 1 },
-    { key: "team", done: members >= 2 },
-  ];
-}

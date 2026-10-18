@@ -3,13 +3,12 @@ import { redirect } from "next/navigation";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui/page";
-import { SetupChecklist } from "@/components/app/setup-checklist";
 import { VoyageCard } from "@/components/app/voyage-card";
 import { withTenant } from "@/db";
 import { formatMoney } from "@/lib/money";
 import { homeFor } from "@/lib/portals";
 import { can, requireAuth } from "@/server/auth";
-import { dashboardStats, listUpcomingVoyages, setupProgress } from "@/server/queries";
+import { dashboardStats, listUpcomingVoyages } from "@/server/queries";
 import { Ship } from "lucide-react";
 
 export const metadata = { title: "Dashboard" };
@@ -27,10 +26,9 @@ export default async function DashboardPage() {
     );
   }
 
-  const { stats, voyages, setup } = await withTenant(auth.tenantId, async (tx) => ({
+  const { stats, voyages } = await withTenant(auth.tenantId, async (tx) => ({
     stats: await dashboardStats(tx, auth.tenant.timeZone),
     voyages: await listUpcomingVoyages(tx, { limit: 6 }),
-    setup: can(auth, "settings.manage") ? await setupProgress(tx) : [],
   }));
   const firstName = auth.name.split(" ")[0];
 
@@ -41,7 +39,6 @@ export default async function DashboardPage() {
         description="Here is what's happening across your sailings."
         actions={can(auth, "booking.create") && <ButtonLink href="/app/bookings/new"><Plus className="size-4" aria-hidden />New booking</ButtonLink>}
       />
-      <SetupChecklist steps={setup} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Ticket} label="Bookings today" value={stats.todayBookings} />
         <StatCard icon={Receipt} tone="ok" label="Sales today" value={formatMoney(stats.todayRevenue, auth.tenant.baseCurrency, auth.tenant.locale)} />
