@@ -53,6 +53,7 @@ model Tenant {
   payments        Payment[]
   syncOperations  SyncOperation[]
   auditLogs       AuditLog[]
+  inquiries       Inquiry[]
 
   @@map("tenants")
 }
@@ -427,4 +428,37 @@ model RateLimit {
 
   @@index([resetAt], map: "rate_limits_reset_idx")
   @@map("rate_limits")
+}
+
+/// A request for a quote that arrived through the operator's website form (or was typed in by staff).
+model Inquiry {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  inquiryNo   Int       @map("inquiry_no")
+  name        String
+  email       String
+  phone       String?
+  company     String?
+  /// AIR | OCEAN | GROUND | UNSURE
+  mode        String
+  origin      String
+  destination String
+  cargo       String
+  weightKg    Float?    @map("weight_kg")
+  readyOn     DateTime? @map("ready_on") @db.Date
+  message     String?
+  /// NEW | QUOTED | WON | LOST
+  status      String    @default("NEW")
+  /// Private to staff; never shown to the visitor.
+  notes       String?
+  /// FORM | STAFF
+  source      String    @default("FORM")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, inquiryNo], map: "inquiries_tenant_no_idx")
+  @@index([tenantId, status, createdAt], map: "inquiries_tenant_status_idx")
+  @@map("inquiries")
 }

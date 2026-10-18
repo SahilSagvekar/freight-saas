@@ -2,7 +2,7 @@ import { ActionForm } from "@/components/app/action-form";
 import { TaxToggle } from "@/components/app/tax-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Checkbox, Field, Input, Select } from "@/components/ui/field";
+import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { adminDb, withTenant } from "@/db";
@@ -16,6 +16,8 @@ import { connectConfigured } from "@/server/stripe";
 import { appBaseUrl } from "@/server/base-url";
 import { disconnectStripeAction, saveOnlineBookingAction } from "@/server/settings-actions";
 import { addItemTypeAction, addLocationAction, addTaxAction, addVesselAction, saveGeneralAction, setItemFieldsAction, setPriceAction } from "@/server/settings-actions";
+import { saveInquirySettingsAction } from "@/server/inquiry-actions";
+import { mailConfigured } from "@/server/mail";
 import { getTenantConfig } from "@/server/shared";
 
 export const metadata = { title: "Settings" };
@@ -33,7 +35,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }));
   const cur = auth.tenant.baseCurrency;
   const slug = (await adminDb().tenant.findUniqueOrThrow({ where: { id: auth.tenantId }, select: { slug: true } })).slug;
-  const bookingUrl = `${await appBaseUrl()}/book/${slug}`;
+  const base = await appBaseUrl();
+  const bookingUrl = `${base}/book/${slug}`;
+  const inquiryUrl = `${base}/inquire/${slug}`;
+  const embedSnippet = `<iframe src="${inquiryUrl}" title="Request a quote" width="100%" height="900" style="border:0;max-width:640px"></iframe>`;
   const anyRoute = (id: string) => data.prices.find((p) => p.itemTypeId === id && !p.originId && !p.destinationId)?.unitPrice;
 
   return (
@@ -182,6 +187,27 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <p className="text-muted">Customers book online and pay at the ticket desk. Card payments need Stripe to be set up by your provider.</p>
               )}
             </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="Website inquiry form" description="A quote-request form you can put on your own website. Requests arrive under Inquiries." />
+          <CardBody className="space-y-4">
+            {!mailConfigured() && <Alert tone="warning">Email isn&apos;t set up on this server yet, so nobody will be emailed about new inquiries. They still appear under Inquiries.</Alert>}
+            <ActionForm action={saveInquirySettingsAction} reset={false} submitLabel="Save" className="space-y-3">
+              <Checkbox name="enabled" label="Turn the website form on" defaultChecked={data.config.inquiryEnabled} />
+              <Field label="Email new inquiries to" htmlFor="inq-notify" hint="One or more addresses, separated by commas."><Input id="inq-notify" name="notify" defaultValue={data.config.inquiryNotify} placeholder="sales@yourcompany.com, ops@yourcompany.com" /></Field>
+              <Field label="Message shown after sending" htmlFor="inq-thanks"><Textarea id="inq-thanks" name="thanks" rows={2} maxLength={500} defaultValue={data.config.inquiryThanks} /></Field>
+            </ActionForm>
+            {data.config.inquiryEnabled ? (
+              <div className="space-y-2 border-t border-line pt-4 text-sm">
+                <p>Your form: <a className="break-all font-medium text-brand-700 underline" href={inquiryUrl}>{inquiryUrl}</a></p>
+                <p className="text-muted">To show it on your website, paste this where you want it to appear:</p>
+                <pre className="overflow-x-auto rounded-lg bg-canvas p-3 text-xs"><code>{embedSnippet}</code></pre>
+              </div>
+            ) : (
+              <p className="border-t border-line pt-4 text-sm text-muted">Turn the form on and save to get your link and the code to paste into your website.</p>
+            )}
           </CardBody>
         </Card>
       </div>

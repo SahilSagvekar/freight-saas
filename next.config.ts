@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
-const securityHeaders = [
+const baseHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
   // Camera is for scanning tickets at the dock; everything else is off.
@@ -12,7 +11,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      // Everything is blocked from being framed, except the inquiry form: operators embed that on their own websites.
+      { source: "/((?!inquire/).*)", headers: [...baseHeaders, { key: "X-Frame-Options", value: "DENY" }] },
+      { source: "/inquire/:path*", headers: [...baseHeaders, { key: "Content-Security-Policy", value: "frame-ancestors *" }] },
+    ];
   },
 };
 

@@ -57,3 +57,20 @@ export function ticketEmail(p: { name: string; operator: string; route: string; 
     html: shell(`You're booked: ${p.route}`, [`Hi ${p.name}, your booking ${p.bookingNo} with ${p.operator} is confirmed.`, p.when, note], { label: "Open my ticket", url: p.url }),
   };
 }
+
+export function inquiryAlertEmail(p: { operator: string; no: string; name: string; company: string | null; mode: string; route: string; cargo: string; url: string }): Email {
+  const who = p.company ? `${p.name} at ${p.company}` : p.name;
+  return {
+    subject: `New inquiry: ${p.mode}, ${p.route}`,
+    text: `${who} sent a quote request to ${p.operator}.\n\n${p.no}\n${p.mode}: ${p.route}\n${p.cargo}\n\nOpen it: ${p.url}\n`,
+    html: shell(`New inquiry from ${who}`, [`${p.no} · ${p.mode}`, p.route, p.cargo], { label: "Open the inquiry", url: p.url }),
+  };
+}
+
+export function inquiryReceivedEmail(p: { name: string; operator: string; message: string; route: string }): Email {
+  return {
+    subject: `We received your request (${p.route})`,
+    text: `Hi ${p.name},\n\n${p.message}\n\n${p.operator}\n`,
+    html: shell(`We received your request`, [`Hi ${p.name},`, p.message, `For: ${p.route}`], undefined, p.operator),
+  };
+}

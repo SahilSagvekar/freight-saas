@@ -3,7 +3,7 @@ import type { Tx } from "@/db";
 import { DEFAULT_OVERSELL_PERCENT } from "@/lib/domain";
 
 /** Next per-tenant sequence value. The upsert locks the counter row, so concurrent callers never collide. */
-export async function nextNumber(tx: Tx, tenantId: string, key: "booking" | "invoice" | "voyage"): Promise<number> {
+export async function nextNumber(tx: Tx, tenantId: string, key: "booking" | "invoice" | "voyage" | "inquiry"): Promise<number> {
   // Raw on purpose: Prisma's upsert is not always a single atomic INSERT ... ON CONFLICT.
   const [row] = await tx.$queryRaw<{ value: number }[]>`
     insert into counters (tenant_id, key, value) values (${tenantId}::uuid, ${key}, 1)
@@ -44,6 +44,12 @@ export type TenantConfig = {
   invoicePrefix: string;
   /** Whether the public /book/<slug> page is switched on. */
   publicBookingEnabled: boolean;
+  /** Whether the website inquiry form at /inquire/<slug> is switched on. */
+  inquiryEnabled: boolean;
+  /** Comma-separated addresses told about each new inquiry. */
+  inquiryNotify: string;
+  /** What the visitor sees after sending the form. */
+  inquiryThanks: string;
 };
 
 export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
@@ -62,6 +68,9 @@ export async function getTenantConfig(tx: Tx): Promise<TenantConfig> {
     bookingPrefix: str("bookingPrefix", "BK-"),
     invoicePrefix: str("invoicePrefix", "INV-"),
     publicBookingEnabled: map.get("publicBookingEnabled") === true,
+    inquiryEnabled: map.get("inquiryEnabled") === true,
+    inquiryNotify: str("inquiryNotify", ""),
+    inquiryThanks: str("inquiryThanks", "Thank you. We have your request and will get back to you soon."),
   };
 }
 
@@ -75,4 +84,5 @@ export async function setTenantSetting(tx: Tx, tenantId: string, key: string, va
 }
 
 export const formatBookingNo = (config: TenantConfig, n: number) => `${config.bookingPrefix}${String(n).padStart(5, "0")}`;
+export const formatInquiryNo = (n: number) => `INQ-${String(n).padStart(5, "0")}`;
 export const formatInvoiceNo = (config: TenantConfig, n: number) => `${config.invoicePrefix}${String(n).padStart(5, "0")}`;

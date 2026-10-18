@@ -48,6 +48,11 @@ data, demo logins or placeholder prices.
 3. The owner signs in, sets up ports, vessels and prices under **Settings** and schedules a first voyage under **Voyages**,
    then adds staff under **Team**. Each new member gets their own one-time link.
 
+**Website inquiry form.** Under **Settings → Website inquiry form** an owner turns on a quote-request form, picks who is
+emailed, and copies an `<iframe>` snippet for their own website (the form lives at `/inquire/<slug>`). Requests land in
+**Inquiries** with New / Quoted / Won / Lost statuses and private notes. It is the only page that may be framed by other
+sites (see `next.config.ts`). Spam is stopped by a hidden field plus per-connection and per-day limits.
+
 The demo (`npm run seed`) refuses to run on any database that holds a real operator, and on a non-local database
 unless `ALLOW_DEMO_SEED=this-is-the-demo-database` is set. Tests refuse to connect to anything except the local
 `freight_test` database.

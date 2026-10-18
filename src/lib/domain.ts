@@ -41,6 +41,14 @@ export type FieldDef = {
 
 export type Capacities = Record<ItemKind, number>;
 
+export const TRANSPORT_MODES = ["AIR", "OCEAN", "GROUND", "UNSURE"] as const;
+export type TransportMode = (typeof TRANSPORT_MODES)[number];
+export const MODE_LABELS: Record<TransportMode, string> = { AIR: "Air freight", OCEAN: "Ocean freight", GROUND: "Ground freight", UNSURE: "Not sure yet" };
+
+export const INQUIRY_STATUSES = ["NEW", "QUOTED", "WON", "LOST"] as const;
+export type InquiryStatus = (typeof INQUIRY_STATUSES)[number];
+export const INQUIRY_STATUS_LABELS: Record<InquiryStatus, string> = { NEW: "New", QUOTED: "Quoted", WON: "Won", LOST: "Lost" };
+
 /**
  * Passengers and vehicles are individuals: each needs its own name or plate, so each gets its own row.
  * Cargo may be several identical items under one description. An item type with no detail fields can always be counted.

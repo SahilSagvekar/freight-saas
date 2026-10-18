@@ -1,6 +1,6 @@
 "use client";
 
-import { Anchor, BarChart3, CreditCard, CalendarDays, ClipboardCheck, ScanLine, LayoutDashboard, LogOut, Menu, Settings, Store, Ticket, UserCog, Users, X } from "lucide-react";
+import { Anchor, BarChart3, CreditCard, CalendarDays, ClipboardCheck, Inbox, ScanLine, LayoutDashboard, LogOut, Menu, Settings, Store, Ticket, UserCog, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; badge?: number };
 
-const ICONS = { dashboard: LayoutDashboard, voyages: CalendarDays, bookings: Ticket, review: ClipboardCheck, settings: Settings, desk: Store, team: Users, reports: BarChart3, checkin: ScanLine, billing: CreditCard };
+const ICONS = { dashboard: LayoutDashboard, voyages: CalendarDays, bookings: Ticket, review: ClipboardCheck, settings: Settings, desk: Store, team: Users, reports: BarChart3, checkin: ScanLine, billing: CreditCard, inquiries: Inbox };
 
 function Links({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();

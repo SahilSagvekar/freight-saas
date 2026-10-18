@@ -3,7 +3,9 @@ import { describeAttributes, validateAttributes } from "@/lib/attributes";
 import { checkCapacity, oversellAllowance } from "@/lib/capacity";
 import { isPerUnit, type FieldDef } from "@/lib/domain";
 import { formatMoney, fromMinor, minorUnitDigits, toMinor } from "@/lib/money";
+import { parseEmails } from "@/lib/email-list";
 import { computeLine, resolveUnitPrice, sumLines } from "@/lib/pricing";
+import { inquirySchema } from "@/lib/schemas";
 
 describe("money", () => {
   it("knows currency decimal places", () => {
@@ -166,5 +168,49 @@ describe("one row per person or vehicle", () => {
   it("lets cargo, and types with no details, be counted", () => {
     expect(isPerUnit("CARGO", fields)).toBe(false);
     expect(isPerUnit("PASSENGER", [])).toBe(false);
+  });
+});
+
+describe("website inquiry form", () => {
+  const valid = { name: "Priya Shah", email: "priya@acme.test", mode: "OCEAN", origin: "Mumbai", destination: "Dubai", cargo: "12 pallets of tiles" };
+
+  it("accepts the minimum a forwarder needs for a quote", () => {
+    const r = inquirySchema.safeParse(valid);
+    expect(r.success).toBe(true);
+  });
+
+  it("treats blank optional fields as missing", () => {
+    const r = inquirySchema.safeParse({ ...valid, phone: "", company: "", weightKg: "", readyOn: "", message: "" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.weightKg).toBeUndefined();
+      expect(r.data.readyOn).toBeUndefined();
+    }
+  });
+
+  it("reads weight and date from form strings", () => {
+    const r = inquirySchema.safeParse({ ...valid, weightKg: "1250.5", readyOn: "2026-12-31" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.weightKg).toBe(1250.5);
+  });
+
+  it("rejects missing or bad fields with a plain message", () => {
+    const msg = (o: object) => {
+      const r = inquirySchema.safeParse({ ...valid, ...o });
+      return r.success ? null : r.error.issues[0]?.message;
+    };
+    expect(msg({ name: "  " })).toBe("Enter your name");
+    expect(msg({ email: "nope" })).toBe("Enter a valid email");
+    expect(msg({ mode: "TRAIN" })).toBe("Choose how you want to ship");
+    expect(msg({ cargo: "" })).toBe("Tell us what you are shipping");
+    expect(msg({ weightKg: "-3" })).toBe("Weight must be more than 0");
+    expect(msg({ readyOn: "31/12/2026" })).toBe("Use a date like 2026-12-31");
+  });
+});
+
+describe("notification addresses", () => {
+  it("keeps valid, distinct addresses from a pasted list", () => {
+    expect(parseEmails("Sales@Acme.test, ops@acme.test; sales@acme.test  not-an-email")).toEqual(["sales@acme.test", "ops@acme.test"]);
+    expect(parseEmails("")).toEqual([]);
   });
 });

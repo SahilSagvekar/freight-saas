@@ -33,9 +33,11 @@ describe("portals", () => {
     const hrefs = (p: Permission[]) => navFor(p).map((i) => i.href);
     expect(hrefs(role("Dock crew"))).toEqual(["/app/voyages", "/app/bookings", "/app/checkin"]);
     expect(hrefs(role("Booking agent"))).toContain("/app/desk");
+    expect(hrefs(role("Booking agent"))).toContain("/app/inquiries");
+    expect(hrefs(role("Dock crew"))).not.toContain("/app/inquiries");
     expect(hrefs(role("Booking agent"))).not.toContain("/app/review");
     expect(hrefs(role("Cashier"))).not.toContain("/app/settings");
-    expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/desk", "/app/voyages", "/app/bookings", "/app/checkin", "/app/reports", "/app/review", "/app/team", "/app/settings", "/app/billing"]);
+    expect(hrefs(ALL_PERMISSIONS)).toEqual(["/app", "/app/desk", "/app/voyages", "/app/bookings", "/app/inquiries", "/app/checkin", "/app/reports", "/app/review", "/app/team", "/app/settings", "/app/billing"]);
   });
 
   it("does not send a team-only role to a page that needs booking.view", () => {
