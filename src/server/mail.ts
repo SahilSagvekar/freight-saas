@@ -13,7 +13,11 @@ export async function sendMail(to: string, email: Email): Promise<boolean> {
       body: JSON.stringify({ from: process.env.MAIL_FROM, to: [to], subject: email.subject, text: email.text, html: email.html }),
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) console.error("mail: provider refused", res.status);
+    if (!res.ok) {
+      // Resend's reply says why (unverified domain, bad key, bad sender). Keep it short; it never contains the API key.
+      const detail = (await res.text().catch(() => "")).slice(0, 300);
+      console.error(`mail: provider refused ${res.status} ${detail}`);
+    }
     return res.ok;
   } catch (e) {
     console.error("mail: send failed", e);

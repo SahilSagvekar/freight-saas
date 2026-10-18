@@ -84,7 +84,7 @@ Set `PLATFORM_ADMIN_EMAILS` to your email. Sign in normally with that email and 
 
 ## When a setup email doesn't arrive
 
-If sending fails, the server logs `mail: provider refused <status>` (or `mail: send failed`). A `403`/`422` usually means `MAIL_FROM` uses a domain you haven't verified in Resend; `401` means a wrong `RESEND_API_KEY`. After fixing it, the person can use "Forgot password" on the sign-in page. To hand someone a link directly:
+If sending fails, the server logs `mail: provider refused <status> <Resend's message>` (or `mail: send failed`). A `403`/`422` usually means `MAIL_FROM` uses a domain you haven't verified in Resend; `401` means a wrong `RESEND_API_KEY`. To try it without redeploying, set `RESEND_API_KEY` and `MAIL_FROM` in your terminal and run `npm run mail:test -- --to you@example.com`; it prints Resend's exact answer. After fixing it, the person can use "Forgot password" on the sign-in page. To hand someone a link directly:
 
 ```bash
 npm run owner:link -- --email maya@example.com    # needs ADMIN_DATABASE_URL, SESSION_SECRET and APP_URL set
