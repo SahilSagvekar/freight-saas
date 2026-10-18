@@ -56,6 +56,9 @@ model Tenant {
   syncOperations  SyncOperation[]
   auditLogs       AuditLog[]
   inquiries       Inquiry[]
+  shipments       Shipment[]
+  shipmentPackages ShipmentPackage[]
+  shipmentEvents  ShipmentEvent[]
 
   @@map("tenants")
 }
@@ -463,4 +466,93 @@ model Inquiry {
   @@unique([tenantId, inquiryNo], map: "inquiries_tenant_no_idx")
   @@index([tenantId, status, createdAt], map: "inquiries_tenant_status_idx")
   @@map("inquiries")
+}
+
+/// A consignment being moved for a customer. Parties are stored as typed so documents print exactly what staff entered.
+/// inquiry_id and quote_id are plain ids (no foreign key): the link is informational and survives deleting either side.
+model Shipment {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  shipmentNo  Int       @map("shipment_no")
+  /// OCEAN | AIR | GROUND
+  mode        String
+  /// BOOKED | PICKED_UP | IN_TRANSIT | ARRIVED | CLEARED | DELIVERED | CANCELLED
+  status      String    @default("BOOKED")
+  inquiryId   String?   @map("inquiry_id") @db.Uuid
+  quoteId     String?   @map("quote_id") @db.Uuid
+  customerRef String?   @map("customer_ref")
+  /// { name, address, phone?, email?, taxId? }
+  shipper     Json
+  consignee   Json
+  notifyParty Json?     @map("notify_party")
+  origin      String
+  destination String
+  incoterm    String?
+  carrier     String?
+  vesselOrFlight String? @map("vessel_or_flight")
+  voyageNo    String?   @map("voyage_no")
+  /// Master air waybill or master bill of lading number.
+  masterNo    String?   @map("master_no")
+  /// House air waybill or house bill of lading number. Printed as the document's number when set.
+  houseNo     String?   @map("house_no")
+  containerNo String?   @map("container_no")
+  sealNo      String?   @map("seal_no")
+  etd         DateTime? @db.Date
+  eta         DateTime? @db.Date
+  goods       String
+  marks       String?
+  currency    String
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  packages ShipmentPackage[]
+  events   ShipmentEvent[]
+
+  @@unique([tenantId, shipmentNo], map: "shipments_tenant_no_idx")
+  @@index([tenantId, status, createdAt], map: "shipments_tenant_status_idx")
+  @@map("shipments")
+}
+
+model ShipmentPackage {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  shipmentId    String  @map("shipment_id") @db.Uuid
+  sortOrder     Int     @default(0) @map("sort_order")
+  quantity      Int
+  packageType   String  @map("package_type")
+  description   String
+  lengthCm      Float?  @map("length_cm")
+  widthCm       Float?  @map("width_cm")
+  heightCm      Float?  @map("height_cm")
+  /// Total for the whole line (all pieces together).
+  grossWeightKg Float?  @map("gross_weight_kg")
+  marks         String?
+  hsCode        String? @map("hs_code")
+  /// Minor units of the shipment's currency.
+  declaredValue Int?    @map("declared_value")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, sortOrder], map: "shipment_packages_shipment_idx")
+  @@map("shipment_packages")
+}
+
+model ShipmentEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  shipmentId String   @map("shipment_id") @db.Uuid
+  status     String
+  location   String?
+  note       String?
+  actorId    String?  @map("actor_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, createdAt], map: "shipment_events_shipment_idx")
+  @@map("shipment_events")
 }

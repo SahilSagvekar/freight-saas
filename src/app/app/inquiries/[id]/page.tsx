@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/app/action-form";
 import { InquiryStatusBadge } from "@/components/app/inquiry-status";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page";
@@ -11,6 +11,7 @@ import { withTenant } from "@/db";
 import { INQUIRY_STATUS_LABELS, INQUIRY_STATUSES, MODE_LABELS, type TransportMode } from "@/lib/domain";
 import { formatDateTime } from "@/lib/format";
 import { requirePermission } from "@/server/auth";
+import { convertInquiryAction } from "@/server/shipment-actions";
 import { saveInquiryNotesAction, setInquiryStatusAction } from "@/server/inquiry-actions";
 import { formatInquiryNo } from "@/server/shared";
 
@@ -69,6 +70,15 @@ export default async function InquiryDetailPage({ params }: PageProps<"/app/inqu
                   </ActionForm>
                 ))}
               </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader title="Won this job?" description="Starts a shipment with these details filled in and marks the inquiry won." />
+            <CardBody>
+              <form action={convertInquiryAction}>
+                <input type="hidden" name="id" value={r.id} />
+                <Button type="submit">Convert to shipment</Button>
+              </form>
             </CardBody>
           </Card>
           <Card>

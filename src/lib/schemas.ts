@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRANSPORT_MODES } from "./domain";
+import { INCOTERMS, parseDay, SHIPMENT_MODES } from "./shipment";
 
 /** Shared by server actions, the sync endpoint and the offline form, so all three validate identically. */
 export const bookingLineSchema = z.object({
@@ -56,3 +57,54 @@ export const inquirySchema = z.object({
   message: optionalText(2000),
 });
 export type InquiryInput = z.infer<typeof inquirySchema>;
+
+const optionalEmail = z.string().trim().email("Enter a valid email").max(200).optional().or(z.literal(""));
+const optionalDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-31").refine((v) => parseDay(v) !== null, "That date doesn't exist").optional().or(z.literal(""));
+const optionalNumber = (label: string, max: number) => z.number({ error: `${label} must be a number` }).positive(`${label} must be more than 0`).max(max).nullish();
+
+export const partySchema = z.object({
+  name: z.string().trim().min(1, "Enter a name").max(160),
+  address: z.string().trim().min(1, "Enter an address").max(500),
+  phone: optionalText(60),
+  email: optionalEmail,
+  taxId: optionalText(60),
+});
+
+export const packageLineSchema = z.object({
+  quantity: z.number({ error: "Enter how many pieces" }).int("Pieces must be a whole number").min(1, "Enter at least 1 piece").max(1_000_000),
+  packageType: z.string().trim().min(1, "Choose a package type").max(40),
+  description: z.string().trim().min(1, "Describe the goods").max(300),
+  lengthCm: optionalNumber("Length", 100_000),
+  widthCm: optionalNumber("Width", 100_000),
+  heightCm: optionalNumber("Height", 100_000),
+  grossWeightKg: optionalNumber("Weight", 100_000_000),
+  marks: optionalText(200),
+  hsCode: z.string().trim().regex(/^[0-9][0-9.\- ]{3,13}$/, "HS codes are 4 to 14 digits, like 6907.21").optional().or(z.literal("")),
+  declaredValue: z.number().int().min(0).max(1_000_000_000_00).nullish(),
+});
+
+export const shipmentSchema = z.object({
+  mode: z.enum(SHIPMENT_MODES, { message: "Choose air, ocean or ground" }),
+  customerRef: optionalText(80),
+  shipper: partySchema,
+  consignee: partySchema,
+  notifyParty: partySchema.nullish(),
+  origin: z.string().trim().min(1, "Where is it shipping from?").max(160),
+  destination: z.string().trim().min(1, "Where is it shipping to?").max(160),
+  incoterm: z.enum(INCOTERMS).optional().or(z.literal("")),
+  carrier: optionalText(120),
+  vesselOrFlight: optionalText(120),
+  voyageNo: optionalText(60),
+  masterNo: optionalText(60),
+  houseNo: optionalText(60),
+  containerNo: optionalText(60),
+  sealNo: optionalText(60),
+  etd: optionalDay,
+  eta: optionalDay,
+  goods: z.string().trim().min(1, "Describe the goods").max(500),
+  marks: optionalText(300),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Use a 3-letter currency code"),
+  notes: optionalText(2000),
+  packages: z.array(packageLineSchema).min(1, "Add at least one package line").max(200),
+});
+export type ShipmentInput = z.infer<typeof shipmentSchema>;
