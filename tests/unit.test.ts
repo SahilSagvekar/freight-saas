@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { describeAttributes, validateAttributes } from "@/lib/attributes";
 import { checkCapacity, oversellAllowance } from "@/lib/capacity";
-import type { FieldDef } from "@/lib/domain";
+import { isPerUnit, type FieldDef } from "@/lib/domain";
 import { formatMoney, fromMinor, minorUnitDigits, toMinor } from "@/lib/money";
 import { computeLine, resolveUnitPrice, sumLines } from "@/lib/pricing";
 
@@ -154,5 +154,17 @@ describe("capacity", () => {
     expect(checkCapacity({ capacity: 10, used: 8, requested: 2, allowance: 1 }).verdict).toBe("OK");
     expect(checkCapacity({ capacity: 10, used: 8, requested: 3, allowance: 1 }).verdict).toBe("OVERSELL");
     expect(checkCapacity({ capacity: 10, used: 8, requested: 4, allowance: 1 }).verdict).toBe("FULL");
+  });
+});
+
+describe("one row per person or vehicle", () => {
+  const fields: FieldDef[] = [{ key: "plate", label: "Plate", type: "text" }];
+  it("needs its own row for passengers and vehicles that record details", () => {
+    expect(isPerUnit("PASSENGER", fields)).toBe(true);
+    expect(isPerUnit("VEHICLE", fields)).toBe(true);
+  });
+  it("lets cargo, and types with no details, be counted", () => {
+    expect(isPerUnit("CARGO", fields)).toBe(false);
+    expect(isPerUnit("PASSENGER", [])).toBe(false);
   });
 });

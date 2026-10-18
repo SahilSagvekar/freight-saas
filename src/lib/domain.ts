@@ -41,6 +41,12 @@ export type FieldDef = {
 
 export type Capacities = Record<ItemKind, number>;
 
+/**
+ * Passengers and vehicles are individuals: each needs its own name or plate, so each gets its own row.
+ * Cargo may be several identical items under one description. An item type with no detail fields can always be counted.
+ */
+export const isPerUnit = (kind: ItemKind, fieldSchema: readonly unknown[]) => kind !== "CARGO" && fieldSchema.length > 0;
+
 /** Permission keys are fixed in code; each tenant composes its own roles from them. */
 export const PERMISSIONS = {
   "booking.view": "View bookings",

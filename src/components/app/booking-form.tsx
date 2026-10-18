@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
-import { ITEM_KINDS, KIND_LABELS, type ItemKind } from "@/lib/domain";
+import { isPerUnit, ITEM_KINDS, KIND_LABELS, type ItemKind } from "@/lib/domain";
 import { formatDeparture } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { computeLine, resolveUnitPrice, sumLines } from "@/lib/pricing";
@@ -66,7 +66,9 @@ export function BookingForm({
   const unpriced = priced.filter((p) => p.unitPrice === null);
 
   const adding = (itemTypeId: string) => {
-    const existing = lines.find((l) => l.itemTypeId === itemTypeId && Object.keys(typeById.get(itemTypeId)!.fieldSchema).length === 0);
+    const type = typeById.get(itemTypeId)!;
+    // People and vehicles each get their own row; items with no details to record are simply counted.
+    const existing = isPerUnit(type.kind, type.fieldSchema) ? undefined : lines.find((l) => l.itemTypeId === itemTypeId && type.fieldSchema.length === 0);
     if (existing) return setQty(existing.key, existing.quantity + 1);
     setLines((ls) => [...ls, { key: nextKey, itemTypeId, quantity: 1, attributes: {} }]);
     setNextKey((k) => k + 1);
@@ -149,7 +151,7 @@ export function BookingForm({
         </Card>
 
         <Card>
-          <CardHeader title="2. What is travelling?" description="Tap an item to add it. Prices are for the sailing above." />
+          <CardHeader title="2. What is travelling?" description="Tap an item to add it. Tap again to add another person or vehicle. Prices are for the sailing above." />
           <CardBody className="space-y-5">
             {ITEM_KINDS.map((kind) => {
               const types = data.itemTypes.filter((t) => t.kind === kind);
@@ -180,21 +182,30 @@ export function BookingForm({
           <Card>
             <CardHeader title="Items in this booking" />
             <ul className="divide-y divide-line">
-              {priced.map(({ line, type, unitPrice, amounts }) => (
+              {priced.map(({ line, type, unitPrice, amounts }) => {
+                const perUnit = isPerUnit(type.kind, type.fieldSchema);
+                const same = priced.filter((p) => p.line.itemTypeId === line.itemTypeId);
+                const label = perUnit && same.length > 1 ? `${type.name} ${same.findIndex((p) => p.line.key === line.key) + 1}` : type.name;
+                return (
                 <li key={line.key} className="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{type.name}</p>
+                      <p className="truncate text-sm font-medium text-ink">{label}</p>
                       <p className="tabular text-xs text-muted">{unitPrice === null ? "No price on this route" : `${formatMoney(unitPrice, currency, locale)} each`}</p>
                     </div>
+                    {!perUnit && (
                     <div className="flex items-center gap-1">
                       <Button size="sm" variant="secondary" aria-label={`Fewer ${type.name}`} onClick={() => setQty(line.key, line.quantity - 1)}><Minus className="size-3.5" /></Button>
                       <Input aria-label={`${type.name} quantity`} inputMode="numeric" className="h-8 w-14 text-center" value={line.quantity} onChange={(e) => setQty(line.key, Number(e.target.value.replace(/\D/g, "")))} />
                       <Button size="sm" variant="secondary" aria-label={`More ${type.name}`} onClick={() => setQty(line.key, line.quantity + 1)}><Plus className="size-3.5" /></Button>
                     </div>
+                    )}
                     <p className="tabular w-24 text-right text-sm font-semibold">{amounts ? formatMoney(amounts.total, currency, locale) : "—"}</p>
                     <Button size="sm" variant="ghost" aria-label={`Remove ${type.name}`} onClick={() => remove(line.key)}><Trash2 className="size-4" /></Button>
                   </div>
+                  {!perUnit && type.fieldSchema.length > 0 && line.quantity > 1 && (
+                    <p className="text-xs text-muted">The details below apply to all {line.quantity}. Different goods? Tap {type.name} above again to add a separate line.</p>
+                  )}
                   {type.fieldSchema.length > 0 && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {type.fieldSchema.map((f) => {
@@ -217,7 +228,8 @@ export function BookingForm({
                     </div>
                   )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </Card>
         )}

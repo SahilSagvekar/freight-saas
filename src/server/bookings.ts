@@ -6,6 +6,7 @@ import {
   ITEM_KINDS,
   type Capacities,
   type FieldDef,
+  isPerUnit,
   KIND_LABELS,
   type BookingSource,
   type BookingStatus,
@@ -96,6 +97,11 @@ export async function createBooking(tx: Tx, ctx: CreateContext, input: CreateBoo
   const prepared = input.lines.map((line, index) => {
     const type = typeById.get(line.itemTypeId);
     if (!type) throw new BookingError("ITEM_NOT_FOUND", "One of the items is no longer available");
+
+    // Offline sales queued before this rule existed are still accepted; staff can tidy them in the Review queue.
+    if (ctx.source !== "OFFLINE_SYNC" && line.quantity > 1 && isPerUnit(type.kind as ItemKind, type.fieldSchema as FieldDef[])) {
+      throw new BookingError("INVALID_ATTRIBUTES", `Add ${type.name} one at a time, each needs its own details`, { [`lines.${index}.quantity`]: "Add each one as its own row" });
+    }
 
     const attrs = validateAttributes(type.fieldSchema as FieldDef[], line.attributes);
     if (!attrs.ok) {
