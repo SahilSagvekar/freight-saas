@@ -14,7 +14,14 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
   if (state.done) {
     return (
       <div className="space-y-4">
-        {state.done.link ? (
+        {state.done.emailFailed ? (
+          <Alert tone="warning" title="Your workspace was created, but we couldn't send the email">
+            <p>We tried to email a link to {state.done.email} and it didn&apos;t go through, so you can&apos;t choose a password yet.</p>
+            <p className="mt-2">
+              Try again in a few minutes with <Link href="/forgot-password" className="font-medium underline">Forgot password</Link>, using the same email. If it still doesn&apos;t arrive, contact us and we&apos;ll send you a link.
+            </p>
+          </Alert>
+        ) : state.done.link ? (
           <Alert tone="success" title="Your workspace is ready">
             <p>Email isn&apos;t set up on this server, so here is your one-time link:</p>
             <Link href={state.done.link} className="mt-2 block break-all font-mono text-xs underline">{state.done.link}</Link>

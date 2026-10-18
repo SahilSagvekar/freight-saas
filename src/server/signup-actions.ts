@@ -12,7 +12,8 @@ import { provisionTenant } from "./provision";
 import { issueSetupLink } from "./setup-links";
 import { throttle } from "./throttle";
 
-export type SignupState = { error?: string; done?: { email: string; emailed: boolean; link?: string } };
+/** `emailFailed` means the workspace exists but the provider did not accept the message, so nobody has a link yet. */
+export type SignupState = { error?: string; done?: { email: string; emailed: boolean; link?: string; emailFailed?: boolean } };
 
 const schema = z.object({
   operator: z.string().trim().min(2, "Enter your company name").max(80),
@@ -61,6 +62,12 @@ export async function signupAction(_prev: SignupState, f: FormData): Promise<Sig
 
   const link = await issueSetupLink(created.ownerUserId, await appBaseUrl(), SETUP_LINK_TTL_HOURS);
   const emailed = await sendMail(d.email, welcomeEmail({ name: d.name, operator: d.operator, url: link }));
-  // Only show the link on screen when there is no email at all (local development).
+  // Only show the link on screen when there is no email at all (local development). When email IS set up but the
+  // provider refused the message, the link stays hidden, because showing it would let anyone claim a workspace
+  // under an address they do not own. Say so plainly instead of pretending an email is on its way.
+  if (mail && !emailed) {
+    console.error(`signup: workspace "${created.slug}" was created but the welcome email was not accepted by the mail provider`);
+    return { done: { email: d.email, emailed: false, emailFailed: true } };
+  }
   return { done: { email: d.email, emailed, link: emailed || mail ? undefined : link } };
 }
