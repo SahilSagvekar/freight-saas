@@ -19,7 +19,8 @@ In production the server **refuses to start** if a required value is missing or 
 
 1. `npm run db:migrate` with `ADMIN_DATABASE_URL` set (applies migrations and the app role's privileges).
 2. Start the app. Check `GET /api/health` returns `{"ok":true}`.
-3. Create the first operator: `npm run tenant:create -- --name "..." --owner-name "..." --email ...`
+3. Create the first operator: `npm run tenant:create -- --name "..." --owner-name "..." --email ...` (add `--kind freight` for a freight forwarder).
+   This release adds migrations 5 to 8 (inquiries, workspace kind, shipments, quotes and invoices). They only add tables and one column with a default, so existing ferry operators are unaffected.
 
 ## Backups
 

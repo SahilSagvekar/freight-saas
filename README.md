@@ -53,6 +53,16 @@ emailed, and copies an `<iframe>` snippet for their own website (the form lives 
 **Inquiries** with New / Quoted / Won / Lost statuses and private notes. It is the only page that may be framed by other
 sites (see `next.config.ts`). Spam is stopped by a hidden field plus per-connection and per-day limits.
 
+**Freight workspaces.** Sign-up (and `npm run tenant:create -- ... --kind freight`) can create a freight-forwarder workspace
+instead of a ferry one; it gets its own navigation and dashboard. It covers the whole job: website **Inquiries** →
+**Quotes** (price, send, accept) → **Shipments** (air, ocean, ground; parties, package lines, status history, optional
+"email the customer") → printable **Bill of Lading / House Air Waybill / Road Consignment Note, packing list, commercial
+invoice and numbered cargo labels** (100 × 150 mm with a QR code) → **Invoices** (unpaid / paid / void, due dates,
+overdue). Customers follow a shipment at `/track/<signed code>` (status and dates only). **Import and export** moves
+shipments and inquiries in and out as CSV. Company address, tax number and the legal terms printed on documents are set
+under **Settings**. Documents are print pages: use the browser's "Save as PDF". Migrations 5 to 8 add these tables;
+every one has row-level security like the rest.
+
 The demo (`npm run seed`) refuses to run on any database that holds a real operator, and on a non-local database
 unless `ALLOW_DEMO_SEED=this-is-the-demo-database` is set. Tests refuse to connect to anything except the local
 `freight_test` database.
