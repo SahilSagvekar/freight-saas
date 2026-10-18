@@ -82,6 +82,16 @@ An online booking waiting for card payment holds its seats for 35 minutes, then 
 
 Set `PLATFORM_ADMIN_EMAILS` to your email. Sign in normally with that email and open `/admin`. You see operators with counts and billing state; you can extend a trial, comp or un-comp an operator, suspend, and generate a one-time owner sign-in link. You cannot read bookings or passengers, and there is no impersonation. Keep sign-ups email-verified (see below) so nobody can claim an admin address before you do.
 
+## When a setup email doesn't arrive
+
+If sending fails, the server logs `mail: provider refused <status>` (or `mail: send failed`). A `403`/`422` usually means `MAIL_FROM` uses a domain you haven't verified in Resend; `401` means a wrong `RESEND_API_KEY`. After fixing it, the person can use "Forgot password" on the sign-in page. To hand someone a link directly:
+
+```bash
+npm run owner:link -- --email maya@example.com    # needs ADMIN_DATABASE_URL, SESSION_SECRET and APP_URL set
+```
+
+The link works once and expires in 72 hours. Sign-up never shows the link on screen when email is set up, so nobody can claim a workspace under an address they don't own.
+
 ## Sign-ups
 
 `/signup` creates an operator on a 14-day trial and emails the owner a link to choose a password. In production it stays **closed unless email is configured** (`RESEND_API_KEY`, `MAIL_FROM`), because without email the address can't be verified. `ALLOW_UNVERIFIED_SIGNUP=1` overrides that; don't, unless you accept anyone can create a workspace under any address. There is no CAPTCHA yet: a hidden honeypot field and per-IP/email throttles are the only bot protection.
