@@ -45,7 +45,7 @@ data, demo logins or placeholder prices.
 2. Create each customer with `npm run tenant:create -- --name "Island Ferries" --owner-name "Maya Collins" --email maya@example.com --currency USD --timezone America/Nassau`.
    It prints a one-time link (valid 72 hours, works once). The owner opens it and chooses their own password.
    No password is ever chosen or stored by you, and no price list is added unless you pass `--starter`.
-3. The owner signs in, follows the setup checklist on their home page (ports, vessels, prices, first voyage),
+3. The owner signs in, sets up ports, vessels and prices under **Settings** and schedules a first voyage under **Voyages**,
    then adds staff under **Team**. Each new member gets their own one-time link.
 
 The demo (`npm run seed`) refuses to run on any database that holds a real operator, and on a non-local database
