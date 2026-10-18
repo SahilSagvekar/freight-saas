@@ -73,6 +73,10 @@ export default async function InquiryDetailPage({ params }: PageProps<"/app/inqu
             </CardBody>
           </Card>
           <Card>
+            <CardHeader title="Price it"  description="Starts a quote with the customer and route filled in." />
+            <CardBody><ButtonLink href={`/app/quotes/new?inquiry=${r.id}`} variant="secondary">Create quote</ButtonLink></CardBody>
+          </Card>
+          <Card>
             <CardHeader title="Won this job?" description="Starts a shipment with these details filled in and marks the inquiry won." />
             <CardBody>
               <form action={convertInquiryAction}>

@@ -181,3 +181,81 @@ describe("freight exports", () => {
     expect(csv).toContain(",5,15,0,5.00,USD,");
   });
 });
+
+import { addDays, canMoveInvoice, canMoveQuote, computeTotals, isOverdue, linesOf, percentToBp } from "@/lib/freight-billing";
+import { freightInvoiceSchema, quoteSchema } from "@/lib/schemas";
+
+describe("quote and invoice maths", () => {
+  it("rounds each line, then tax once on the subtotal", () => {
+    const t = computeTotals([{ description: "a", quantity: 3, unitPrice: 333 }, { description: "b", quantity: 1.5, unitPrice: 101 }], 1200);
+    expect(t.lines.map((l) => l.amount)).toEqual([999, 152]);
+    expect(t.subtotal).toBe(1151);
+    expect(t.tax).toBe(138);
+    expect(t.total).toBe(1289);
+  });
+  it("refuses amounts that would overflow the database", () => {
+    expect(() => computeTotals([{ description: "huge", quantity: 1_000_000, unitPrice: 2_000_000_000 }], 0)).toThrow();
+    expect(() => computeTotals([{ description: "a", quantity: 1, unitPrice: 2_000_000_000 }, { description: "b", quantity: 1, unitPrice: 1 }], 0)).toThrow();
+  });
+  it("reads percentages", () => {
+    expect(percentToBp("12")).toBe(1200);
+    expect(percentToBp("7.5%")).toBe(750);
+    expect(percentToBp("")).toBe(0);
+    expect(percentToBp("abc")).toBeNull();
+    expect(percentToBp("150")).toBeNull();
+  });
+  it("adds days across month ends", () => {
+    expect(addDays("2026-01-31", 14)).toBe("2026-02-14");
+    expect(addDays("2026-12-25", 14)).toBe("2027-01-08");
+  });
+  it("flags overdue only for unpaid invoices past their due day", () => {
+    expect(isOverdue("UNPAID", "2026-05-01", "2026-05-02")).toBe(true);
+    expect(isOverdue("UNPAID", "2026-05-02", "2026-05-02")).toBe(false);
+    expect(isOverdue("PAID", "2026-05-01", "2026-05-02")).toBe(false);
+  });
+  it("moves statuses sensibly", () => {
+    expect(canMoveQuote("SENT", "ACCEPTED")).toBe(true);
+    expect(canMoveQuote("ACCEPTED", "REJECTED")).toBe(false);
+    expect(canMoveInvoice("VOID", "UNPAID")).toBe(false);
+    expect(canMoveInvoice("PAID", "UNPAID")).toBe(true);
+  });
+  it("drops malformed stored lines", () => {
+    expect(linesOf([{ description: "x", quantity: 1, unitPrice: 5 }, { description: 3 }, null])).toHaveLength(1);
+    expect(linesOf("nope")).toEqual([]);
+  });
+  const base = { customerName: "Bolt", currency: "usd", taxBp: 0, lines: [{ description: "Freight", quantity: 1, unitPrice: 1000 }] };
+  it("validates quotes and invoices", () => {
+    expect(quoteSchema.safeParse({ ...base, mode: "AIR", origin: "A", destination: "B" }).success).toBe(true);
+    expect(quoteSchema.safeParse({ ...base, lines: [], mode: "AIR", origin: "A", destination: "B" }).success).toBe(false);
+    expect(freightInvoiceSchema.safeParse({ ...base, issuedOn: "2026-05-10", dueOn: "2026-05-01" }).success).toBe(false);
+    expect(freightInvoiceSchema.safeParse({ ...base, issuedOn: "2026-05-01", dueOn: "2026-05-15" }).success).toBe(true);
+  });
+});
+
+import { billFormFrom, emptyBillForm, previewTotals, toInvoicePayload, toQuotePayload } from "@/lib/billing-form";
+
+describe("billing form", () => {
+  const filledBill = () => ({ ...emptyBillForm({ customerName: "Bolt", origin: "A", destination: "B", issuedOn: "2026-05-01", dueOn: "2026-05-15", taxPercent: "10" }), lines: [{ key: 1, description: "Ocean freight", quantity: "2", unitPrice: "1,200.50" }] });
+  it("converts to payloads the schemas accept", () => {
+    const f = filledBill();
+    const q = toQuotePayload(f, "USD", null);
+    expect(q.errors).toEqual({});
+    expect(quoteSchema.safeParse(q.payload).success).toBe(true);
+    const i = toInvoicePayload(f, "USD", { shipmentId: null, quoteId: null });
+    expect(freightInvoiceSchema.safeParse(i.payload).success).toBe(true);
+    expect(i.payload.lines[0]!.unitPrice).toBe(120050);
+    expect(i.payload.taxBp).toBe(1000);
+  });
+  it("previews totals and goes quiet on unreadable input", () => {
+    expect(previewTotals(filledBill(), "USD")?.total).toBe(264110);
+    const f = filledBill();
+    f.lines[0]!.unitPrice = "abc";
+    expect(previewTotals(f, "USD")).toBeNull();
+    expect(toQuotePayload(f, "USD", null).errors["lines.0.unitPrice"]).toBeTruthy();
+  });
+  it("round-trips a stored document", () => {
+    const f = billFormFrom({ customerName: "Bolt", customerCompany: null, customerEmail: null, customerAddress: null, notes: null, taxBp: 750, currency: "USD", lines: [{ description: "x", quantity: 2, unitPrice: 1050 }] });
+    expect(f.taxPercent).toBe("7.5");
+    expect(f.lines[0]!.unitPrice).toBe("10.50");
+  });
+});

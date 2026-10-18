@@ -141,6 +141,7 @@ export default async function ShipmentPage({ params }: PageProps<"/app/shipments
               <ButtonLink href={`/app/shipments/${s.id}/packing-list`} variant="secondary">Packing list</ButtonLink>
               <ButtonLink href={`/app/shipments/${s.id}/invoice`} variant="secondary">Commercial invoice</ButtonLink>
               <ButtonLink href={`/app/shipments/${s.id}/labels`} variant="secondary">Cargo labels ({totals.pieces})</ButtonLink>
+              {auth.permissions.has("payment.record") && <ButtonLink href={`/app/invoices/new?shipment=${s.id}`} variant="ghost">Create invoice for this shipment</ButtonLink>}
             </CardBody>
           </Card>
           <Card>

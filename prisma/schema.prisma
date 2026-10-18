@@ -59,6 +59,8 @@ model Tenant {
   shipments       Shipment[]
   shipmentPackages ShipmentPackage[]
   shipmentEvents  ShipmentEvent[]
+  quotes          Quote[]
+  freightInvoices FreightInvoice[]
 
   @@map("tenants")
 }
@@ -555,4 +557,74 @@ model ShipmentEvent {
 
   @@index([shipmentId, createdAt], map: "shipment_events_shipment_idx")
   @@map("shipment_events")
+}
+
+/// A price offered to a customer. Lines are JSON: [{ description, quantity, unitPrice }] with unitPrice in minor units.
+model Quote {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  quoteNo         Int       @map("quote_no")
+  /// DRAFT | SENT | ACCEPTED | REJECTED
+  status          String    @default("DRAFT")
+  inquiryId       String?   @map("inquiry_id") @db.Uuid
+  /// Set when the quote was turned into a shipment.
+  shipmentId      String?   @map("shipment_id") @db.Uuid
+  customerName    String    @map("customer_name")
+  customerCompany String?   @map("customer_company")
+  customerEmail   String?   @map("customer_email")
+  customerAddress String?   @map("customer_address")
+  mode            String
+  origin          String
+  destination     String
+  validUntil      DateTime? @map("valid_until") @db.Date
+  currency        String
+  /// Tax in basis points: 1200 = 12%.
+  taxBp           Int       @default(0) @map("tax_bp")
+  lines           Json
+  subtotal        Int
+  taxTotal        Int       @map("tax_total")
+  total           Int
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, quoteNo], map: "quotes_tenant_no_idx")
+  @@index([tenantId, status, createdAt], map: "quotes_tenant_status_idx")
+  @@map("quotes")
+}
+
+/// What a freight customer owes. Separate from the ferry `invoices` table, which is tied to bookings and payments.
+model FreightInvoice {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  invoiceNo       Int       @map("invoice_no")
+  /// UNPAID | PAID | VOID
+  status          String    @default("UNPAID")
+  shipmentId      String?   @map("shipment_id") @db.Uuid
+  quoteId         String?   @map("quote_id") @db.Uuid
+  customerName    String    @map("customer_name")
+  customerCompany String?   @map("customer_company")
+  customerEmail   String?   @map("customer_email")
+  customerAddress String?   @map("customer_address")
+  reference       String?
+  issuedOn        DateTime  @map("issued_on") @db.Date
+  dueOn           DateTime  @map("due_on") @db.Date
+  paidOn          DateTime? @map("paid_on") @db.Date
+  currency        String
+  taxBp           Int       @default(0) @map("tax_bp")
+  lines           Json
+  subtotal        Int
+  taxTotal        Int       @map("tax_total")
+  total           Int
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, invoiceNo], map: "freight_invoices_tenant_no_idx")
+  @@index([tenantId, status, dueOn], map: "freight_invoices_tenant_status_idx")
+  @@map("freight_invoices")
 }

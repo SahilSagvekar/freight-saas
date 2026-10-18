@@ -80,7 +80,7 @@ export const packageLineSchema = z.object({
   grossWeightKg: optionalNumber("Weight", 100_000_000),
   marks: optionalText(200),
   hsCode: z.string().trim().regex(/^[0-9][0-9.\- ]{3,13}$/, "HS codes are 4 to 14 digits, like 6907.21").optional().or(z.literal("")),
-  declaredValue: z.number().int().min(0).max(1_000_000_000_00).nullish(),
+  declaredValue: z.number().int().min(0).max(2_000_000_000, "That value is too large").nullish(),
 });
 
 export const shipmentSchema = z.object({
@@ -108,3 +108,45 @@ export const shipmentSchema = z.object({
   packages: z.array(packageLineSchema).min(1, "Add at least one package line").max(200),
 });
 export type ShipmentInput = z.infer<typeof shipmentSchema>;
+
+const billLineSchema = z.object({
+  description: z.string().trim().min(1, "Describe each charge").max(200),
+  quantity: z.number({ error: "Quantity must be a number" }).positive("Quantity must be more than 0").max(1_000_000),
+  unitPrice: z.number({ error: "Price must be a number" }).int().min(0, "Price can't be negative").max(2_000_000_000),
+});
+
+const customerFields = {
+  customerName: z.string().trim().min(1, "Enter the customer's name").max(160),
+  customerCompany: optionalText(160),
+  customerEmail: optionalEmail,
+  customerAddress: optionalText(500),
+};
+
+const billFields = {
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Use a 3-letter currency code"),
+  taxBp: z.number().int().min(0).max(10_000),
+  lines: z.array(billLineSchema).min(1, "Add at least one charge").max(60),
+  notes: optionalText(2000),
+};
+
+export const quoteSchema = z.object({
+  ...customerFields,
+  ...billFields,
+  mode: z.enum(SHIPMENT_MODES, { message: "Choose a mode" }),
+  origin: z.string().trim().min(1, "Where from?").max(160),
+  destination: z.string().trim().min(1, "Where to?").max(160),
+  validUntil: optionalDay,
+  inquiryId: z.string().uuid().nullish(),
+});
+export type QuoteInput = z.infer<typeof quoteSchema>;
+
+export const freightInvoiceSchema = z.object({
+  ...customerFields,
+  ...billFields,
+  reference: optionalText(120),
+  issuedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-31").refine((v) => parseDay(v) !== null, "That date doesn't exist"),
+  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-31").refine((v) => parseDay(v) !== null, "That date doesn't exist"),
+  shipmentId: z.string().uuid().nullish(),
+  quoteId: z.string().uuid().nullish(),
+}).refine((v) => v.dueOn >= v.issuedOn, { message: "The due date can't be before the invoice date", path: ["dueOn"] });
+export type FreightInvoiceInput = z.infer<typeof freightInvoiceSchema>;

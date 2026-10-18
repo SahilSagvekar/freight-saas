@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui/page";
+import { FreightDashboard } from "@/components/app/freight-dashboard";
 import { VoyageCard } from "@/components/app/voyage-card";
 import { withTenant } from "@/db";
 import { formatMoney } from "@/lib/money";
@@ -25,6 +26,8 @@ export default async function DashboardPage() {
       </Card>
     );
   }
+
+  if (auth.tenant.workspaceKind === "freight") return <FreightDashboard auth={auth} />;
 
   const { stats, voyages } = await withTenant(auth.tenantId, async (tx) => ({
     stats: await dashboardStats(tx, auth.tenant.timeZone),
