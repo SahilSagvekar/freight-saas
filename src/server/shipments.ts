@@ -96,7 +96,7 @@ export async function listShipments(tx: Tx, f: ShipmentFilter = {}) {
         ? { OR: [...(noMatch ? [{ shipmentNo: Number(noMatch[1]) }] : []), { customerRef: text }, { houseNo: text }, { masterNo: text }, { containerNo: text }, { origin: text }, { destination: text }, { goods: text }] }
         : {}),
     },
-    include: { packages: { select: { quantity: true, grossWeightKg: true } } },
+    include: { packages: { select: { quantity: true, lengthCm: true, widthCm: true, heightCm: true, grossWeightKg: true, declaredValue: true } } },
     orderBy: { createdAt: "desc" },
     take: f.limit ?? 200,
   });

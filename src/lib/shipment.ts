@@ -106,7 +106,7 @@ export function labelPieces(lines: readonly PackageLine[], cap = 500): { pieces:
   const total = lines.reduce((n, l) => n + l.quantity, 0);
   const pieces: LabelPiece[] = [];
   for (const l of lines) {
-    for (let i = 0; i < l.quantity && pieces.length < cap; i++) pieces.push({ n: pieces.length + 1, of: total, packageType: l.packageType, description: l.description, marks: l.marks });
+    for (let i = 0; i < l.quantity && pieces.length < cap; i++) pieces.push({ n: pieces.length + 1, of: total, packageType: l.packageType, description: l.description, marks: l.marks ?? null });
   }
   return { pieces, total, truncated: total > cap };
 }

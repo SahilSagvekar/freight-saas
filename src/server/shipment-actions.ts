@@ -50,7 +50,7 @@ export async function setShipmentStatusAction(f: FormData): Promise<ActionResult
     const r = await setShipmentStatus(tx, { tenantId: auth.tenantId, actorId: auth.userId }, p.data.id, p.data.status, p.data);
     if (!r.ok || !wantsEmail) return { r, to: [] as string[], route: "" };
     const s = await tx.shipment.findUnique({ where: { id: p.data.id }, select: { shipper: true, consignee: true, notifyParty: true, origin: true, destination: true } });
-    const to = s ? [...new Set([partyOf(s.consignee).email, partyOf(s.notifyParty).email, partyOf(s.shipper).email].map((e) => e.trim().toLowerCase()).filter(Boolean))] : [];
+    const to = s ? [...new Set([partyOf(s.consignee).email, partyOf(s.notifyParty).email, partyOf(s.shipper).email].map((e) => (e ?? "").trim().toLowerCase()).filter(Boolean))] : [];
     return { r, to, route: s ? `${s.origin} to ${s.destination}` : "" };
   });
   if (!res.r.ok) return { ok: false, error: res.r.error };

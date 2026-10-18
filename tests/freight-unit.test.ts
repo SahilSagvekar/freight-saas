@@ -78,7 +78,7 @@ describe("shipment form", () => {
     const f = filled();
     const { payload } = toShipmentPayload(f, "USD");
     const p = shipmentSchema.parse(payload);
-    const back = formFromShipment({ ...p, customerRef: null, incoterm: null, carrier: null, vesselOrFlight: null, voyageNo: null, masterNo: null, houseNo: null, containerNo: null, sealNo: null, etd: null, eta: null, marks: null, notes: null, notifyParty: null, packages: p.packages.map((x) => ({ ...x, marks: null, hsCode: null })) });
+    const back = formFromShipment({ ...p, customerRef: null, incoterm: null, carrier: null, vesselOrFlight: null, voyageNo: null, masterNo: null, houseNo: null, containerNo: null, sealNo: null, etd: null, eta: null, marks: null, notes: null, notifyParty: null, packages: p.packages.map((x) => ({ ...x, lengthCm: x.lengthCm ?? null, widthCm: x.widthCm ?? null, heightCm: x.heightCm ?? null, grossWeightKg: x.grossWeightKg ?? null, declaredValue: x.declaredValue ?? null, marks: null, hsCode: null })) });
     expect(back.packages[0]!.value).toBe("99.90");
     expect(back.origin).toBe("Shanghai");
   });
