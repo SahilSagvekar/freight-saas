@@ -18,6 +18,9 @@ export function isLocalDatabase(connectionString: string): boolean {
 
 /** The one operator the demo seed is allowed to create. */
 export const DEMO_TENANT_SLUG = "blue-lagoon-ferries";
+/** The demo freight forwarder, seeded alongside the ferry demo so every mode can be seen. */
+export const DEMO_FREIGHT_SLUG = "harbor-gate-freight";
+const DEMO_SLUGS: readonly string[] = [DEMO_TENANT_SLUG, DEMO_FREIGHT_SLUG];
 
 /** Set this to seed a hosted demo database. Local databases do not need it. */
 export const DEMO_SEED_FLAG = "ALLOW_DEMO_SEED";
@@ -33,7 +36,7 @@ export function demoSeedBlockedReason(input: {
   flag: string | undefined;
   existingSlugs: string[];
 }): string | null {
-  const real = input.existingSlugs.filter((slug) => slug !== DEMO_TENANT_SLUG);
+  const real = input.existingSlugs.filter((slug) => !DEMO_SLUGS.includes(slug));
   if (real.length > 0) {
     const shown = real.slice(0, 3).join(", ") + (real.length > 3 ? ", ..." : "");
     return `This database already holds real operators (${shown}). The demo seed only runs on an empty database or one that holds nothing but the demo operator.`;
