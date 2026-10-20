@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { emptyPackage, toShipmentPayload, type PackageForm, type PartyForm, type ShipmentForm } from "@/lib/shipment-form";
-import { INCOTERMS, PACKAGE_TYPES, SHIPMENT_MODES } from "@/lib/shipment";
-import { MODE_LABELS } from "@/lib/domain";
+import { INCOTERMS, PACKAGE_TYPES, PLACE_HINTS, TRANSPORT_FIELDS, isShipmentMode, type ShipmentMode, type TransportFieldKey } from "@/lib/shipment";
+import { ModeChooser } from "@/components/app/mode-chooser";
 import { saveShipmentAction } from "@/server/shipment-actions";
 
 function PartyFields({ id, title, hint, value, onChange, errors, required }: { id: string; title: string; hint?: string; value: PartyForm; onChange: (p: PartyForm) => void; errors: Record<string, string>; required: boolean }) {
@@ -29,6 +29,9 @@ function PartyFields({ id, title, hint, value, onChange, errors, required }: { i
   );
 }
 
+const TRANSPORT_ORDER: TransportFieldKey[] = ["carrier", "vesselOrFlight", "voyageNo", "masterNo", "houseNo", "containerNo", "sealNo"];
+const MAX_LEN: Record<TransportFieldKey, number> = { carrier: 120, vesselOrFlight: 120, voyageNo: 60, masterNo: 60, houseNo: 60, containerNo: 60, sealNo: 60 };
+
 export function ShipmentFormView({ initial, shipmentId, currency }: { initial: ShipmentForm; shipmentId: string | null; currency: string }) {
   const router = useRouter();
   const [f, setF] = useState<ShipmentForm>(initial);
@@ -38,6 +41,14 @@ export function ShipmentFormView({ initial, shipmentId, currency }: { initial: S
   const [pending, start] = useTransition();
 
   const text = (k: keyof ShipmentForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const mode: ShipmentMode | null = isShipmentMode(f.mode) ? f.mode : null;
+  // Changing the mode drops transport details that don't apply to the new one, so a stale container no. can't ride along on an air job.
+  const chooseMode = (m: ShipmentMode) =>
+    setF((s) => {
+      const keep = TRANSPORT_FIELDS[m];
+      const cleared = Object.fromEntries(TRANSPORT_ORDER.filter((k) => !keep[k]).map((k) => [k, ""]));
+      return { ...s, ...cleared, mode: m };
+    });
   const setPkg = (key: number, patch: Partial<PackageForm>) => setF((s) => ({ ...s, packages: s.packages.map((p) => (p.key === key ? { ...p, ...patch } : p)) }));
   const addPkg = () => {
     setF((s) => ({ ...s, packages: [...s.packages, emptyPackage(nextKey)] }));
@@ -74,12 +85,15 @@ export function ShipmentFormView({ initial, shipmentId, currency }: { initial: S
       <Card>
         <CardHeader title="1. The shipment" />
         <CardBody className="grid gap-4 sm:grid-cols-2">
-          <Field label="Mode" htmlFor="sh-mode" required error={errors.mode}>
-            <Select id="sh-mode" value={f.mode} onChange={text("mode")}>{SHIPMENT_MODES.map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}</Select>
-          </Field>
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-sm font-medium text-ink" id="sh-mode-label">How is it travelling? <span className="text-danger-600" aria-hidden>*</span></p>
+            <ModeChooser id="sh-mode" value={f.mode} onChange={chooseMode} error={errors.mode} />
+            {!mode && !errors.mode && <p className="mt-1.5 text-xs text-muted">Choose one to see the right fields and documents.</p>}
+          </div>
+          {mode && <>
           <Field label="Customer reference" htmlFor="sh-ref" hint="Their PO or job number" error={errors.customerRef}><Input id="sh-ref" value={f.customerRef} onChange={text("customerRef")} maxLength={80} /></Field>
-          <Field label="From" htmlFor="sh-origin" required hint="City, port or airport" error={errors.origin}><Input id="sh-origin" value={f.origin} onChange={text("origin")} maxLength={160} /></Field>
-          <Field label="To" htmlFor="sh-dest" required hint="City, port or airport" error={errors.destination}><Input id="sh-dest" value={f.destination} onChange={text("destination")} maxLength={160} /></Field>
+          <Field label="From" htmlFor="sh-origin" required hint={PLACE_HINTS[mode]} error={errors.origin}><Input id="sh-origin" value={f.origin} onChange={text("origin")} maxLength={160} /></Field>
+          <Field label="To" htmlFor="sh-dest" required hint={PLACE_HINTS[mode]} error={errors.destination}><Input id="sh-dest" value={f.destination} onChange={text("destination")} maxLength={160} /></Field>
           <Field label="Incoterm" htmlFor="sh-inco" error={errors.incoterm}>
             <Select id="sh-inco" value={f.incoterm} onChange={text("incoterm")}><option value="">Not set</option>{INCOTERMS.map((i) => <option key={i} value={i}>{i}</option>)}</Select>
           </Field>
@@ -88,8 +102,11 @@ export function ShipmentFormView({ initial, shipmentId, currency }: { initial: S
             <Field label="Arrives (ETA)" htmlFor="sh-eta" error={errors.eta}><Input id="sh-eta" type="date" value={f.eta} onChange={text("eta")} /></Field>
           </div>
           <Field label="Description of goods" htmlFor="sh-goods" required className="sm:col-span-2" error={errors.goods}><Textarea id="sh-goods" rows={2} value={f.goods} onChange={text("goods")} maxLength={500} /></Field>
+          </>}
         </CardBody>
       </Card>
+
+      {mode && <>
 
       <Card>
         <CardHeader title="2. Who is involved" description="Printed on the documents exactly as you type it." />
@@ -137,21 +154,25 @@ export function ShipmentFormView({ initial, shipmentId, currency }: { initial: S
       <Card>
         <CardHeader title="4. Transport details" description="Fill in what you know now; you can come back and add the rest." />
         <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Carrier" htmlFor="sh-carrier" error={errors.carrier}><Input id="sh-carrier" value={f.carrier} onChange={text("carrier")} maxLength={120} /></Field>
-          <Field label="Vessel or flight" htmlFor="sh-vessel" error={errors.vesselOrFlight}><Input id="sh-vessel" value={f.vesselOrFlight} onChange={text("vesselOrFlight")} maxLength={120} /></Field>
-          <Field label="Voyage or flight no." htmlFor="sh-voyage" error={errors.voyageNo}><Input id="sh-voyage" value={f.voyageNo} onChange={text("voyageNo")} maxLength={60} /></Field>
-          <Field label="Master B/L or MAWB no." htmlFor="sh-master" error={errors.masterNo}><Input id="sh-master" value={f.masterNo} onChange={text("masterNo")} maxLength={60} /></Field>
-          <Field label="House B/L or HAWB no." htmlFor="sh-house" hint="Printed as the document number" error={errors.houseNo}><Input id="sh-house" value={f.houseNo} onChange={text("houseNo")} maxLength={60} /></Field>
-          <Field label="Container no." htmlFor="sh-cont" error={errors.containerNo}><Input id="sh-cont" value={f.containerNo} onChange={text("containerNo")} maxLength={60} /></Field>
-          <Field label="Seal no." htmlFor="sh-seal" error={errors.sealNo}><Input id="sh-seal" value={f.sealNo} onChange={text("sealNo")} maxLength={60} /></Field>
+          {TRANSPORT_ORDER.map((k) => {
+            const spec = TRANSPORT_FIELDS[mode][k];
+            if (!spec) return null;
+            return (
+              <Field key={k} label={spec.label} htmlFor={`sh-${k}`} hint={spec.hint} error={errors[k]}>
+                <Input id={`sh-${k}`} value={f[k]} onChange={text(k)} maxLength={MAX_LEN[k]} />
+              </Field>
+            );
+          })}
           <Field label="Marks and numbers (whole shipment)" htmlFor="sh-marks" className="sm:col-span-2" error={errors.marks}><Input id="sh-marks" value={f.marks} onChange={text("marks")} maxLength={300} /></Field>
           <Field label="Internal notes" htmlFor="sh-notes" className="sm:col-span-2 lg:col-span-3" hint="Only your team sees these." error={errors.notes}><Textarea id="sh-notes" rows={3} value={f.notes} onChange={text("notes")} maxLength={2000} /></Field>
         </CardBody>
       </Card>
 
+      </>}
+
       {error && <Alert tone="error">{error}</Alert>}
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" size="lg" disabled={pending}>{pending ? "Saving…" : shipmentId ? "Save shipment" : "Create shipment"}</Button>
+        <Button type="submit" size="lg" disabled={pending || !mode}>{pending ? "Saving…" : shipmentId ? "Save shipment" : "Create shipment"}</Button>
         <Button type="button" size="lg" variant="ghost" onClick={() => router.back()}>Cancel</Button>
       </div>
     </form>

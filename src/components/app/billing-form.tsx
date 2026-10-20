@@ -6,11 +6,11 @@ import { useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Textarea } from "@/components/ui/field";
 import { emptyBillLine, previewTotals, toInvoicePayload, toQuotePayload, type BillForm } from "@/lib/billing-form";
-import { MODE_LABELS } from "@/lib/domain";
+import { ModeChooser } from "@/components/app/mode-chooser";
 import { formatMoney } from "@/lib/money";
-import { SHIPMENT_MODES } from "@/lib/shipment";
+import { PLACE_HINTS, isShipmentMode } from "@/lib/shipment";
 import { saveInvoiceAction, saveQuoteAction } from "@/server/billing-doc-actions";
 
 type Props = { kind: "quote" | "invoice"; initial: BillForm; docId: string | null; currency: string; links: { inquiryId?: string | null; shipmentId?: string | null; quoteId?: string | null } };
@@ -65,11 +65,18 @@ export function BillingFormView({ kind, initial, docId, currency, links }: Props
       {quote ? (
         <Card>
           <CardHeader title="The move" />
-          <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Mode" htmlFor="q-mode" required error={errors.mode}><Select id="q-mode" value={f.mode} onChange={text("mode")}>{SHIPMENT_MODES.map((m) => <option key={m} value={m}>{MODE_LABELS[m]}</option>)}</Select></Field>
-            <Field label="From" htmlFor="q-from" required error={errors.origin}><Input id="q-from" value={f.origin} onChange={text("origin")} maxLength={160} /></Field>
-            <Field label="To" htmlFor="q-to" required error={errors.destination}><Input id="q-to" value={f.destination} onChange={text("destination")} maxLength={160} /></Field>
-            <Field label="Valid until" htmlFor="q-valid" error={errors.validUntil}><Input id="q-valid" type="date" value={f.validUntil} onChange={text("validUntil")} /></Field>
+          <CardBody className="space-y-4">
+            <div>
+              <p className="mb-2 text-sm font-medium text-ink">How is it travelling? <span className="text-danger-600" aria-hidden>*</span></p>
+              <ModeChooser id="q-mode" value={f.mode} onChange={(m) => setF((s) => ({ ...s, mode: m }))} error={errors.mode} />
+            </div>
+            {isShipmentMode(f.mode) && (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="From" htmlFor="q-from" required hint={PLACE_HINTS[f.mode]} error={errors.origin}><Input id="q-from" value={f.origin} onChange={text("origin")} maxLength={160} /></Field>
+                <Field label="To" htmlFor="q-to" required hint={PLACE_HINTS[f.mode]} error={errors.destination}><Input id="q-to" value={f.destination} onChange={text("destination")} maxLength={160} /></Field>
+                <Field label="Valid until" htmlFor="q-valid" error={errors.validUntil}><Input id="q-valid" type="date" value={f.validUntil} onChange={text("validUntil")} /></Field>
+              </div>
+            )}
           </CardBody>
         </Card>
       ) : (
@@ -88,7 +95,7 @@ export function BillingFormView({ kind, initial, docId, currency, links }: Props
         <ul className="divide-y divide-line">
           {f.lines.map((l, i) => (
             <li key={l.key} className="grid gap-3 p-5 sm:grid-cols-[1fr_7rem_9rem_auto] sm:items-start">
-              <Field label="Description" htmlFor={`l-${l.key}-d`} required error={errors[`lines.${i}.description`]}><Input id={`l-${l.key}-d`} value={l.description} onChange={(e) => setLine(l.key, { description: e.target.value })} maxLength={200} placeholder="Ocean freight, customs clearance…" /></Field>
+              <Field label="Description" htmlFor={`l-${l.key}-d`} required error={errors[`lines.${i}.description`]}><Input id={`l-${l.key}-d`} value={l.description} onChange={(e) => setLine(l.key, { description: e.target.value })} maxLength={200} placeholder="Freight, customs clearance, handling…" /></Field>
               <Field label="Qty" htmlFor={`l-${l.key}-q`} error={errors[`lines.${i}.quantity`]}><Input id={`l-${l.key}-q`} inputMode="decimal" value={l.quantity} onChange={(e) => setLine(l.key, { quantity: e.target.value })} /></Field>
               <Field label="Unit price" htmlFor={`l-${l.key}-p`} error={errors[`lines.${i}.unitPrice`]}><Input id={`l-${l.key}-p`} inputMode="decimal" value={l.unitPrice} onChange={(e) => setLine(l.key, { unitPrice: e.target.value })} /></Field>
               <Button type="button" size="sm" variant="ghost" className="sm:mt-6" aria-label={`Remove charge ${i + 1}`} disabled={f.lines.length === 1} onClick={() => setF((s) => ({ ...s, lines: s.lines.filter((x) => x.key !== l.key) }))}><Trash2 className="size-4" /></Button>

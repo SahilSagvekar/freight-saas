@@ -1,5 +1,5 @@
 import { toMinor, fromMinor } from "./money";
-import type { Party } from "./shipment";
+import { isShipmentMode, type Party } from "./shipment";
 
 /** The shipment form keeps everything as text while a person types, and converts once on save. */
 export type PartyForm = { name: string; address: string; phone: string; email: string; taxId: string };
@@ -31,8 +31,9 @@ export type ShipmentForm = {
 export const emptyParty = (): PartyForm => ({ name: "", address: "", phone: "", email: "", taxId: "" });
 export const emptyPackage = (key: number): PackageForm => ({ key, quantity: "1", packageType: "Pallet", description: "", length: "", width: "", height: "", weight: "", marks: "", hsCode: "", value: "" });
 
+/** `mode` starts empty on purpose: a person chooses air, ocean or road, nothing is assumed for them. */
 export const emptyShipmentForm = (): ShipmentForm => ({
-  mode: "OCEAN",
+  mode: "",
   customerRef: "",
   shipper: emptyParty(),
   consignee: emptyParty(),
@@ -90,6 +91,7 @@ export function toShipmentPayload(form: ShipmentForm, currency: string): { paylo
       declaredValue,
     };
   });
+  if (!isShipmentMode(form.mode)) errors.mode = "Choose air, ocean or road";
   return {
     errors,
     payload: {

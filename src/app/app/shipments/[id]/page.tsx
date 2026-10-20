@@ -11,7 +11,7 @@ import { withTenant } from "@/db";
 import { MODE_LABELS, type TransportMode } from "@/lib/domain";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
-import { airChargeableKg, nextShipmentStatuses, packageTotals, SHIPMENT_STATUS_LABELS, TRANSPORT_DOC_TITLE, type ShipmentMode } from "@/lib/shipment";
+import { airChargeableKg, conveyanceText, DOC_LABELS, isShipmentMode, nextShipmentStatuses, packageTotals, REFERENCE_LABELS, SHIPMENT_STATUS_LABELS, TRANSPORT_DOC_TITLE, type ShipmentMode } from "@/lib/shipment";
 import { requirePermission } from "@/server/auth";
 import { setShipmentStatusAction } from "@/server/shipment-actions";
 import { formatInquiryNo, formatShipmentNo } from "@/server/shared";
@@ -56,17 +56,18 @@ export default async function ShipmentPage({ params }: PageProps<"/app/shipments
   const canMove = auth.permissions.has("manifest.update");
   const next = nextShipmentStatuses(s.status);
 
+  const mode = isShipmentMode(s.mode) ? s.mode : "OCEAN";
   const facts: [string, string | null][] = [
     ["Mode", MODE_LABELS[s.mode as TransportMode] ?? s.mode],
     ["Route", `${s.origin} → ${s.destination}`],
     ["Customer reference", s.customerRef],
     ["Incoterm", s.incoterm],
-    ["Carrier", s.carrier],
-    ["Vessel or flight", [s.vesselOrFlight, s.voyageNo].filter(Boolean).join(" ") || null],
-    [s.mode === "AIR" ? "MAWB" : "Master B/L", s.masterNo],
-    [s.mode === "AIR" ? "HAWB" : "House B/L", s.houseNo],
-    ["Container", s.containerNo],
-    ["Seal", s.sealNo],
+    [{ OCEAN: "Carrier", AIR: "Airline", GROUND: "Haulier" }[mode], s.carrier],
+    [DOC_LABELS[mode].conveyance, conveyanceText(mode, s.vesselOrFlight, s.voyageNo) || null],
+    [REFERENCE_LABELS[mode].master ?? "Master reference", REFERENCE_LABELS[mode].master ? s.masterNo : null],
+    [REFERENCE_LABELS[mode].house, s.houseNo],
+    ["Container", mode === "OCEAN" ? s.containerNo : null],
+    ["Seal", mode === "AIR" ? null : s.sealNo],
     ["ETD", s.etd ? formatDate(s.etd) : null],
     ["ETA", s.eta ? formatDate(s.eta) : null],
   ];

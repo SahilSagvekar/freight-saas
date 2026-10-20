@@ -1,7 +1,7 @@
 import type { Tx } from "@/db";
 import { Prisma } from "@/generated/prisma/client";
 import type { ShipmentInput } from "@/lib/schemas";
-import { ACTIVE_SHIPMENT_STATUSES, canMoveShipment, parseDay, SHIPMENT_STATUSES, SHIPMENT_STATUS_LABELS, type PackageLine, type Party, type ShipmentMode, type ShipmentStatus } from "@/lib/shipment";
+import { ACTIVE_SHIPMENT_STATUSES, canMoveShipment, isShipmentMode, parseDay, SHIPMENT_STATUSES, SHIPMENT_STATUS_LABELS, type PackageLine, type Party, type ShipmentMode, type ShipmentStatus } from "@/lib/shipment";
 import { audit, nextNumber } from "./shared";
 
 type Ctx = { tenantId: string; actorId: string | null };
@@ -143,14 +143,15 @@ export async function setShipmentStatus(tx: Tx, ctx: Ctx, id: string, to: string
  * Starts a shipment from a website inquiry, filled in as far as the inquiry allows. The inquiry becomes "won".
  * Asked twice for the same inquiry it returns the shipment that already exists instead of making a duplicate.
  */
-export async function createShipmentFromInquiry(tx: Tx, ctx: Ctx, inquiryId: string, currency: string): Promise<{ id: string; created: boolean } | null> {
+export async function createShipmentFromInquiry(tx: Tx, ctx: Ctx, inquiryId: string, currency: string, chosenMode?: ShipmentMode): Promise<{ id: string; created: boolean } | { needsMode: true } | null> {
   const inq = await tx.inquiry.findUnique({ where: { id: inquiryId } });
   if (!inq) return null;
   const existing = await tx.shipment.findFirst({ where: { inquiryId }, select: { id: true } });
   if (existing) return { id: existing.id, created: false };
 
-  // "Not sure yet" has to become something; staff are sent straight to the edit screen to correct it.
-  const mode: ShipmentMode = inq.mode === "AIR" || inq.mode === "GROUND" ? inq.mode : "OCEAN";
+  // "Not sure yet" is never guessed at: staff say how it is travelling, or nothing is created.
+  const mode: ShipmentMode | undefined = isShipmentMode(inq.mode) ? inq.mode : chosenMode;
+  if (!mode) return { needsMode: true };
   const input: ShipmentInput = {
     mode,
     customerRef: "",

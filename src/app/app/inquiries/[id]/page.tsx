@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page";
 import { withTenant } from "@/db";
 import { INQUIRY_STATUS_LABELS, INQUIRY_STATUSES, MODE_LABELS, type TransportMode } from "@/lib/domain";
 import { formatDateTime } from "@/lib/format";
+import { isShipmentMode } from "@/lib/shipment";
 import { requirePermission } from "@/server/auth";
 import { convertInquiryAction } from "@/server/shipment-actions";
 import { saveInquiryNotesAction, setInquiryStatusAction } from "@/server/inquiry-actions";
@@ -17,13 +18,15 @@ import { formatInquiryNo } from "@/server/shared";
 
 export const metadata = { title: "Inquiry" };
 
-export default async function InquiryDetailPage({ params }: PageProps<"/app/inquiries/[id]">) {
+export default async function InquiryDetailPage({ params, searchParams }: PageProps<"/app/inquiries/[id]">) {
   const auth = await requirePermission("booking.create");
   const { id } = await params;
+  const { mode: modeNote } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const r = await withTenant(auth.tenantId, (tx) => tx.inquiry.findUnique({ where: { id } }));
   if (!r) notFound();
   const no = formatInquiryNo(r.inquiryNo);
+  const needsMode = !isShipmentMode(r.mode);
   const subject = encodeURIComponent(`Your quote request ${no}: ${r.origin} to ${r.destination}`);
   const rows: [string, string | null][] = [
     ["Mode", MODE_LABELS[r.mode as TransportMode] ?? r.mode],
@@ -81,6 +84,15 @@ export default async function InquiryDetailPage({ params }: PageProps<"/app/inqu
             <CardBody>
               <form action={convertInquiryAction}>
                 <input type="hidden" name="id" value={r.id} />
+                {needsMode && (
+                  <fieldset className="mb-3 space-y-1.5">
+                    <legend className="text-sm font-medium text-ink">The customer wasn&apos;t sure. How is it travelling?</legend>
+                    {(["AIR", "OCEAN", "GROUND"] as const).map((m, i) => (
+                      <label key={m} className="flex items-center gap-2 text-sm"><input type="radio" name="mode" value={m} required={i === 0} />{MODE_LABELS[m]}</label>
+                    ))}
+                    {modeNote === "needed" && <p role="alert" className="text-sm text-danger-600">Choose air, ocean or road first.</p>}
+                  </fieldset>
+                )}
                 <Button type="submit">Convert to shipment</Button>
               </form>
             </CardBody>

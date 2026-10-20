@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/page";
 import { withTenant } from "@/db";
 import { emptyBillForm } from "@/lib/billing-form";
 import { addDays } from "@/lib/freight-billing";
+import { isShipmentMode } from "@/lib/shipment";
 import { localDateString } from "@/lib/tz";
 import { requirePermission } from "@/server/auth";
 import { getTenantConfig } from "@/server/shared";
@@ -22,7 +23,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
   const initial = emptyBillForm({
     validUntil: addDays(today, config.quoteValidDays),
     taxPercent: String(config.freightTaxBp / 100),
-    ...(inq ? { customerName: inq.name, customerCompany: inq.company ?? "", customerEmail: inq.email, mode: inq.mode === "AIR" || inq.mode === "GROUND" ? inq.mode : "OCEAN", origin: inq.origin, destination: inq.destination } : {}),
+    ...(inq ? { customerName: inq.name, customerCompany: inq.company ?? "", customerEmail: inq.email, mode: isShipmentMode(inq.mode) ? inq.mode : "", origin: inq.origin, destination: inq.destination } : {}),
   });
   return (
     <>

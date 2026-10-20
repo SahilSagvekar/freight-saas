@@ -84,7 +84,7 @@ export const packageLineSchema = z.object({
 });
 
 export const shipmentSchema = z.object({
-  mode: z.enum(SHIPMENT_MODES, { message: "Choose air, ocean or ground" }),
+  mode: z.enum(SHIPMENT_MODES, { message: "Choose air, ocean or road" }),
   customerRef: optionalText(80),
   shipper: partySchema,
   consignee: partySchema,
@@ -132,7 +132,7 @@ const billFields = {
 export const quoteSchema = z.object({
   ...customerFields,
   ...billFields,
-  mode: z.enum(SHIPMENT_MODES, { message: "Choose a mode" }),
+  mode: z.enum(SHIPMENT_MODES, { message: "Choose air, ocean or road" }),
   origin: z.string().trim().min(1, "Where from?").max(160),
   destination: z.string().trim().min(1, "Where to?").max(160),
   validUntil: optionalDay,

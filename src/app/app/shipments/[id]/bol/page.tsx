@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Box, DocToolbar, DOC_SHEET, Letterhead, PartyBlock } from "@/components/app/doc-parts";
 import { withTenant } from "@/db";
 import { formatDate } from "@/lib/format";
-import { TRANSPORT_DOC_TITLE, type ShipmentMode } from "@/lib/shipment";
+import { conveyanceText, DOC_LABELS, isShipmentMode, TRANSPORT_DOC_TITLE } from "@/lib/shipment";
 import { requirePermission } from "@/server/auth";
 import { loadShipmentDoc } from "@/server/shipment-docs";
 import { formatShipmentNo } from "@/server/shared";
@@ -16,8 +16,10 @@ export default async function BillOfLadingPage({ params }: PageProps<"/app/shipm
   const d = await withTenant(auth.tenantId, (tx) => loadShipmentDoc(tx, auth.tenant.name, id));
   if (!d) notFound();
   const { s, lines, totals } = d;
-  const air = s.mode === "AIR";
-  const title = TRANSPORT_DOC_TITLE[s.mode as ShipmentMode] ?? "Bill of Lading";
+  const mode = isShipmentMode(s.mode) ? s.mode : "OCEAN";
+  const labels = DOC_LABELS[mode];
+  const carrierLabel = { OCEAN: "Carrier", AIR: "Airline", GROUND: "Haulier" }[mode];
+  const title = TRANSPORT_DOC_TITLE[mode];
   const docNo = s.houseNo || formatShipmentNo(s.shipmentNo);
 
   return (
@@ -27,16 +29,17 @@ export default async function BillOfLadingPage({ params }: PageProps<"/app/shipm
         <Letterhead company={d.company} title={title} number={docNo} sub={s.houseNo ? `Shipment ${formatShipmentNo(s.shipmentNo)}` : undefined} />
         <div className="mt-4 grid grid-cols-2 gap-0 [&>*]:-mt-px [&>*]:-ml-px">
           <Box label="Shipper"><PartyBlock party={d.shipper} /></Box>
-          <Box label={air ? "House AWB no." : "Bill of lading no."}><span className="font-mono">{docNo}</span></Box>
+          <Box label={labels.docNo}><span className="font-mono">{docNo}</span></Box>
           <Box label="Consignee"><PartyBlock party={d.consignee} /></Box>
-          <Box label={air ? "Master AWB no." : "Master B/L no."}><span className="font-mono">{s.masterNo || "—"}</span></Box>
+          {labels.master ? <Box label={labels.master}><span className="font-mono">{s.masterNo || "—"}</span></Box> : <Box label="Customer reference">{s.customerRef || "—"}</Box>}
           <Box label="Notify party"><PartyBlock party={d.notify} /></Box>
-          <Box label="Carrier">{s.carrier || "—"}</Box>
-          <Box label={air ? "Airport of departure" : "Port or place of loading"}>{s.origin}</Box>
-          <Box label={air ? "Flight" : "Vessel and voyage"}>{[s.vesselOrFlight, s.voyageNo].filter(Boolean).join(" ") || "—"}</Box>
-          <Box label={air ? "Airport of destination" : "Port or place of discharge"}>{s.destination}</Box>
-          <Box label="Sailing or departure date (ETD)">{s.etd ? formatDate(s.etd) : "—"}</Box>
-          {!air && <Box label="Container and seal no.">{[s.containerNo, s.sealNo && `Seal ${s.sealNo}`].filter(Boolean).join(" / ") || "—"}</Box>}
+          <Box label={carrierLabel}>{s.carrier || "—"}</Box>
+          <Box label={labels.origin}>{s.origin}</Box>
+          <Box label={labels.conveyance}>{conveyanceText(mode, s.vesselOrFlight, s.voyageNo) || "—"}</Box>
+          <Box label={labels.destination}>{s.destination}</Box>
+          <Box label={labels.departure}>{s.etd ? formatDate(s.etd) : "—"}</Box>
+          {mode === "OCEAN" && <Box label="Container and seal no.">{[s.containerNo, s.sealNo && `Seal ${s.sealNo}`].filter(Boolean).join(" / ") || "—"}</Box>}
+          {mode === "GROUND" && <Box label="Seal no.">{s.sealNo || "—"}</Box>}
           <Box label="Incoterm">{s.incoterm || "—"}</Box>
         </div>
 

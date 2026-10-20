@@ -1,5 +1,6 @@
 import { computeTotals, bpToPercent, linesOf, percentToBp, type BillLine, type Totals } from "./freight-billing";
 import { fromMinor, toMinor } from "./money";
+import { isShipmentMode } from "./shipment";
 import { parseNumber } from "./shipment-form";
 
 /** Quote and invoice forms share one shape. The fields a kind doesn't use are simply ignored. */
@@ -28,7 +29,7 @@ export const emptyBillLine = (key: number): BillLineForm => ({ key, description:
 export const emptyBillForm = (d: Partial<BillForm> = {}): BillForm => ({
   customerName: "", customerCompany: "", customerEmail: "", customerAddress: "", notes: "", taxPercent: "0",
   lines: [emptyBillLine(1)],
-  mode: "OCEAN", origin: "", destination: "", validUntil: "",
+  mode: "", origin: "", destination: "", validUntil: "",
   reference: "", issuedOn: "", dueOn: "",
   ...d,
 });
@@ -53,6 +54,7 @@ const customerOf = (f: BillForm) => ({ customerName: f.customerName, customerCom
 
 export function toQuotePayload(form: BillForm, currency: string, inquiryId: string | null) {
   const c = convertLines(form, currency);
+  if (!isShipmentMode(form.mode)) c.errors.mode = "Choose air, ocean or road";
   return { errors: c.errors, payload: { ...customerOf(form), mode: form.mode, origin: form.origin, destination: form.destination, validUntil: form.validUntil, currency, taxBp: c.taxBp, lines: c.lines, notes: form.notes, inquiryId } };
 }
 

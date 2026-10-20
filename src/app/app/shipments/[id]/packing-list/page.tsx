@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Box, DocToolbar, DOC_SHEET, Letterhead, PartyBlock } from "@/components/app/doc-parts";
 import { withTenant } from "@/db";
 import { formatDate } from "@/lib/format";
-import { lineVolumeCbm } from "@/lib/shipment";
+import { conveyanceText, isShipmentMode, lineVolumeCbm } from "@/lib/shipment";
 import { requirePermission } from "@/server/auth";
 import { loadShipmentDoc } from "@/server/shipment-docs";
 import { formatShipmentNo } from "@/server/shared";
@@ -16,6 +16,7 @@ export default async function PackingListPage({ params }: PageProps<"/app/shipme
   const d = await withTenant(auth.tenantId, (tx) => loadShipmentDoc(tx, auth.tenant.name, id));
   if (!d) notFound();
   const { s, lines, totals } = d;
+  const mode = isShipmentMode(s.mode) ? s.mode : "OCEAN";
 
   return (
     <>
@@ -27,7 +28,7 @@ export default async function PackingListPage({ params }: PageProps<"/app/shipme
           <Box label="Consignee"><PartyBlock party={d.consignee} /></Box>
           <Box label="From">{s.origin}</Box>
           <Box label="To">{s.destination}</Box>
-          <Box label="Carrier and vessel or flight">{[s.carrier, s.vesselOrFlight, s.voyageNo].filter(Boolean).join(" · ") || "—"}</Box>
+          <Box label={{ OCEAN: "Carrier and vessel", AIR: "Airline and flight", GROUND: "Haulier and vehicle" }[mode]}>{[s.carrier, conveyanceText(mode, s.vesselOrFlight, s.voyageNo)].filter(Boolean).join(" · ") || "—"}</Box>
           <Box label="Date shipped (ETD)">{s.etd ? formatDate(s.etd) : "—"}</Box>
         </div>
         <table className="mt-5 w-full border-collapse text-sm">

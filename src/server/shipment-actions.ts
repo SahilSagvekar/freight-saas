@@ -8,7 +8,7 @@ import { fieldErrors } from "@/lib/form-errors";
 import { shipmentSchema } from "@/lib/schemas";
 import { readShipmentCsv } from "@/lib/shipment-import";
 import { shipmentStatusEmail } from "@/lib/email-templates";
-import { SHIPMENT_STATUS_LABELS, SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipment";
+import { isShipmentMode, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUSES, type ShipmentStatus } from "@/lib/shipment";
 import { trackingCode } from "@/lib/tracking-code";
 import { appBaseUrl } from "./base-url";
 import { sendMail, mailConfigured } from "./mail";
@@ -75,8 +75,10 @@ export async function convertInquiryAction(f: FormData): Promise<void> {
   const auth = await requireWrite("booking.create");
   const id = String(f.get("id") ?? "");
   if (!z.string().uuid().safeParse(id).success) redirect("/app/inquiries");
-  const made = await withTenant(auth.tenantId, (tx) => createShipmentFromInquiry(tx, { tenantId: auth.tenantId, actorId: auth.userId }, id, auth.tenant.baseCurrency));
+  const picked = String(f.get("mode") ?? "");
+  const made = await withTenant(auth.tenantId, (tx) => createShipmentFromInquiry(tx, { tenantId: auth.tenantId, actorId: auth.userId }, id, auth.tenant.baseCurrency, isShipmentMode(picked) ? picked : undefined));
   if (!made) redirect("/app/inquiries");
+  if ("needsMode" in made) redirect(`/app/inquiries/${id}?mode=needed`);
   revalidatePath("/app/inquiries", "layout");
   redirect(`/app/shipments/${made.id}/edit`);
 }

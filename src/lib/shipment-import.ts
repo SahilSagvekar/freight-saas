@@ -11,14 +11,14 @@ export const IMPORT_COLUMNS = [
   "mode", "customer_ref", "incoterm", "carrier", "container_no", "house_no", "master_no", "etd", "eta",
   "pieces", "package_type", "weight_kg", "length_cm", "width_cm", "height_cm", "hs_code", "value",
 ] as const;
-const REQUIRED = ["origin", "destination", "goods", "shipper_name", "shipper_address", "consignee_name", "consignee_address"] as const;
+const REQUIRED = ["origin", "destination", "goods", "shipper_name", "shipper_address", "consignee_name", "consignee_address", "mode"] as const;
 
 export const importTemplateRows = (): string[][] => [
   [...IMPORT_COLUMNS],
   ["Shanghai", "Rotterdam", "Ceramic tiles", "Acme Ltd", "1 Export Road, Shanghai", "Bolt BV", "2 Havenstraat, Rotterdam", "ocean", "PO-1001", "FOB", "", "", "", "", "2026-11-03", "2026-12-10", "20", "Pallet", "12400", "120", "100", "110", "6907.21", "15800.00"],
 ];
 
-const MODE_ALIASES: Record<string, string> = { ocean: "OCEAN", sea: "OCEAN", air: "AIR", ground: "GROUND", road: "GROUND", truck: "GROUND" };
+const MODE_ALIASES: Record<string, string> = { ocean: "OCEAN", sea: "OCEAN", air: "AIR", "air freight": "AIR", "ocean freight": "OCEAN", "road freight": "GROUND", ground: "GROUND", road: "GROUND", truck: "GROUND" };
 
 export type ImportResult = { shipments: ShipmentInput[]; errors: string[] };
 
@@ -52,7 +52,8 @@ export function readShipmentCsv(text: string, currency: string): ImportResult {
       return v;
     };
     const modeText = get("mode").toLowerCase();
-    const mode = modeText === "" ? "OCEAN" : MODE_ALIASES[modeText] ?? get("mode").toUpperCase();
+    // A blank mode is an error, not "ocean": the row is rejected with "Choose air, ocean or road".
+    const mode = modeText === "" ? "" : MODE_ALIASES[modeText] ?? get("mode").toUpperCase();
     const typeText = get("package_type");
     const packageType = typeText === "" ? "Other" : PACKAGE_TYPES.find((t) => t.toLowerCase() === typeText.toLowerCase()) ?? "Other";
     let declaredValue: number | null = null;

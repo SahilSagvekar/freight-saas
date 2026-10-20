@@ -84,13 +84,16 @@ describe("shipments", () => {
     const t = await makeTenant("Alpha");
     const ctx = { tenantId: t.tenantId, actorId: t.ownerUserId };
     const inq = await withTenant(t.tenantId, (tx) => createInquiry(tx, { ...ctx, actorId: null, source: "FORM" }, { name: "Priya", email: "p@x.test", mode: "UNSURE", origin: "Mumbai", destination: "Dubai", cargo: "Tiles", weightKg: 500 }));
-    const first = await withTenant(t.tenantId, (tx) => createShipmentFromInquiry(tx, ctx, inq.id, "USD"));
+    // "Not sure yet" is never guessed: nothing is made until staff say how it is travelling.
+    expect(await withTenant(t.tenantId, (tx) => createShipmentFromInquiry(tx, ctx, inq.id, "USD"))).toEqual({ needsMode: true });
+    expect(await withTenant(t.tenantId, (tx) => tx.shipment.count())).toBe(0);
+    const first = (await withTenant(t.tenantId, (tx) => createShipmentFromInquiry(tx, ctx, inq.id, "USD", "AIR"))) as { id: string; created: boolean };
     const second = await withTenant(t.tenantId, (tx) => createShipmentFromInquiry(tx, ctx, inq.id, "USD"));
-    expect(first?.created).toBe(true);
-    expect(second).toEqual({ id: first!.id, created: false });
+    expect(first.created).toBe(true);
+    expect(second).toEqual({ id: first.id, created: false });
     expect(await withTenant(t.tenantId, (tx) => tx.shipment.count())).toBe(1);
     expect((await withTenant(t.tenantId, (tx) => tx.inquiry.findUniqueOrThrow({ where: { id: inq.id } }))).status).toBe("WON");
-    expect((await withTenant(t.tenantId, (tx) => tx.shipment.findUniqueOrThrow({ where: { id: first!.id } }))).mode).toBe("OCEAN");
+    expect((await withTenant(t.tenantId, (tx) => tx.shipment.findUniqueOrThrow({ where: { id: first.id } }))).mode).toBe("AIR");
   });
 });
 

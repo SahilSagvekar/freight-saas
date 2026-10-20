@@ -113,3 +113,64 @@ export function labelPieces(lines: readonly PackageLine[], cap = 500): { pieces:
 
 /** The document title for a mode: the house bill is a Bill of Lading by sea, an air waybill by air, a consignment note by road. */
 export const TRANSPORT_DOC_TITLE: Record<ShipmentMode, string> = { OCEAN: "Bill of Lading", AIR: "House Air Waybill", GROUND: "Road Consignment Note" };
+
+export const isShipmentMode = (value: unknown): value is ShipmentMode => typeof value === "string" && (SHIPMENT_MODES as readonly string[]).includes(value);
+
+export type TransportFieldKey = "carrier" | "vesselOrFlight" | "voyageNo" | "masterNo" | "houseNo" | "containerNo" | "sealNo";
+export type TransportField = { label: string; hint?: string };
+
+/**
+ * The transport details each mode asks for, in that mode's own words. A field that isn't listed isn't shown for the mode
+ * (a container number means nothing on an air waybill). The stored columns are shared: for road, "vessel or flight" holds
+ * the truck's registration and "voyage" holds the trailer's. Anything already saved in a hidden field is kept, not erased.
+ */
+export const TRANSPORT_FIELDS: Record<ShipmentMode, Partial<Record<TransportFieldKey, TransportField>>> = {
+  OCEAN: {
+    carrier: { label: "Carrier (shipping line)" },
+    vesselOrFlight: { label: "Vessel" },
+    voyageNo: { label: "Voyage no." },
+    masterNo: { label: "Master B/L no." },
+    houseNo: { label: "House B/L no.", hint: "Printed as the document number" },
+    containerNo: { label: "Container no." },
+    sealNo: { label: "Seal no." },
+  },
+  AIR: {
+    carrier: { label: "Airline" },
+    vesselOrFlight: { label: "Flight no.", hint: "For example EK 501" },
+    masterNo: { label: "Master air waybill (MAWB) no." },
+    houseNo: { label: "House air waybill (HAWB) no.", hint: "Printed as the document number" },
+  },
+  GROUND: {
+    carrier: { label: "Haulier" },
+    vesselOrFlight: { label: "Truck registration no." },
+    voyageNo: { label: "Trailer registration no." },
+    houseNo: { label: "Consignment note no.", hint: "Printed as the document number" },
+    sealNo: { label: "Seal no." },
+  },
+};
+
+/** What to ask for in the From and To boxes. */
+export const PLACE_HINTS: Record<ShipmentMode, string> = { OCEAN: "Port or city", AIR: "Airport or city", GROUND: "City or address" };
+
+/** Wording on the printed transport document. `master` is null where the mode has no master document. */
+export type DocLabels = { docNo: string; master: string | null; conveyance: string; origin: string; destination: string; departure: string };
+export const DOC_LABELS: Record<ShipmentMode, DocLabels> = {
+  OCEAN: { docNo: "Bill of lading no.", master: "Master B/L no.", conveyance: "Vessel and voyage", origin: "Port or place of loading", destination: "Port or place of discharge", departure: "Sailing date (ETD)" },
+  AIR: { docNo: "House AWB no.", master: "Master AWB no.", conveyance: "Flight", origin: "Airport of departure", destination: "Airport of destination", departure: "Departure date (ETD)" },
+  GROUND: { docNo: "Consignment note no.", master: null, conveyance: "Vehicle", origin: "Place of taking over the goods", destination: "Place of delivery", departure: "Collection date (ETD)" },
+};
+
+/** Short names for the master and house references, as shown on the shipment page. */
+export const REFERENCE_LABELS: Record<ShipmentMode, { master: string | null; house: string }> = {
+  OCEAN: { master: "Master B/L", house: "House B/L" },
+  AIR: { master: "MAWB", house: "HAWB" },
+  GROUND: { master: null, house: "Consignment note" },
+};
+
+/** The vessel, flight or vehicle as one line of text for a document or page. */
+export function conveyanceText(mode: ShipmentMode, vesselOrFlight: string | null | undefined, voyageNo: string | null | undefined): string {
+  const first = vesselOrFlight?.trim() ?? "";
+  const second = voyageNo?.trim() ?? "";
+  if (mode === "GROUND") return [first && `Truck ${first}`, second && `Trailer ${second}`].filter(Boolean).join(" / ");
+  return [first, second].filter(Boolean).join(" ");
+}

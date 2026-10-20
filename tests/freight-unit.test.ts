@@ -5,6 +5,7 @@ import { emptyShipmentForm, formFromShipment, parseNumber, toShipmentPayload } f
 
 const filled = () => {
   const f = emptyShipmentForm();
+  f.mode = "OCEAN";
   f.origin = "Shanghai";
   f.destination = "Rotterdam";
   f.goods = "Ceramic tiles";
@@ -162,6 +163,18 @@ describe("shipment import", () => {
     expect(readShipmentCsv("origin,destination\nA,B", "USD").errors[0]).toMatch(/Missing columns/);
     expect(readShipmentCsv("", "USD").errors).toHaveLength(1);
   });
+  it("rejects a row with no mode instead of assuming ocean", () => {
+    const head = importTemplateRows()[0]!;
+    const row = [...importTemplateRows()[1]!];
+    row[head.indexOf("mode")] = "";
+    const r = readShipmentCsv(toCsv([head, row]), "USD");
+    expect(r.shipments).toEqual([]);
+    expect(r.errors[0]).toMatch(/^Row 2: Choose air, ocean or road/);
+  });
+  it("starts a new shipment form with no mode chosen", () => {
+    expect(emptyShipmentForm().mode).toBe("");
+    expect(toShipmentPayload({ ...filled(), mode: "" }, "USD").errors.mode).toBeTruthy();
+  });
   it("understands mode words", () => {
     const head = importTemplateRows()[0]!;
     const row = [...importTemplateRows()[1]!];
@@ -235,7 +248,7 @@ describe("quote and invoice maths", () => {
 import { billFormFrom, emptyBillForm, previewTotals, toInvoicePayload, toQuotePayload } from "@/lib/billing-form";
 
 describe("billing form", () => {
-  const filledBill = () => ({ ...emptyBillForm({ customerName: "Bolt", origin: "A", destination: "B", issuedOn: "2026-05-01", dueOn: "2026-05-15", taxPercent: "10" }), lines: [{ key: 1, description: "Ocean freight", quantity: "2", unitPrice: "1,200.50" }] });
+  const filledBill = () => ({ ...emptyBillForm({ customerName: "Bolt", mode: "AIR", origin: "A", destination: "B", issuedOn: "2026-05-01", dueOn: "2026-05-15", taxPercent: "10" }), lines: [{ key: 1, description: "Ocean freight", quantity: "2", unitPrice: "1,200.50" }] });
   it("converts to payloads the schemas accept", () => {
     const f = filledBill();
     const q = toQuotePayload(f, "USD", null);
@@ -245,6 +258,9 @@ describe("billing form", () => {
     expect(freightInvoiceSchema.safeParse(i.payload).success).toBe(true);
     expect(i.payload.lines[0]!.unitPrice).toBe(120050);
     expect(i.payload.taxBp).toBe(1000);
+  });
+  it("won't make a quote until a mode is chosen", () => {
+    expect(toQuotePayload({ ...filledBill(), mode: "" }, "USD", null).errors.mode).toMatch(/air, ocean or road/);
   });
   it("previews totals and goes quiet on unreadable input", () => {
     expect(previewTotals(filledBill(), "USD")?.total).toBe(264110);

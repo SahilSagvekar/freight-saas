@@ -1,14 +1,19 @@
 "use client";
 
-import { ArrowRight, Check, Globe, RotateCcw } from "lucide-react";
+import { ArrowRight, Check, Globe, Plane, RotateCcw, Ship, Truck } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { display } from "./fonts";
-import { DEMO, MiniBol, MiniLabel, MiniPackingList } from "./mini-docs";
+import type { ShipmentMode } from "@/lib/shipment";
+import { DEMO, DEMO_JOBS, MiniBol, MiniLabel, MiniPackingList } from "./mini-docs";
 
 const STEPS = ["Inquiry", "Shipment", "Documents", "Tracking"] as const;
 const STATUSES = ["Booked", "Picked up", "In transit", "Arrived", "Cleared", "Delivered"] as const;
-const PLACES = ["", "Acme warehouse, Navi Mumbai", "Departed Nhava Sheva", "Jebel Ali port", "Dubai customs", "Al Quoz 3, Dubai"];
+const MODE_TABS = [
+  { mode: "AIR", label: "Air", Icon: Plane },
+  { mode: "OCEAN", label: "Ocean", Icon: Ship },
+  { mode: "GROUND", label: "Road", Icon: Truck },
+] as const satisfies readonly { mode: ShipmentMode; label: string; Icon: unknown }[];
 
 /**
  * A small, self-contained walk through the product's core idea: one record, typed once, carries a job from a website
@@ -17,6 +22,8 @@ const PLACES = ["", "Acme warehouse, Navi Mumbai", "Departed Nhava Sheva", "Jebe
 export function FreightDemo() {
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState(2);
+  const [mode, setMode] = useState<ShipmentMode>("AIR");
+  const job = DEMO_JOBS[mode];
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const reset = () => {
@@ -34,6 +41,24 @@ export function FreightDemo() {
             <span className="size-2.5 rounded-full bg-navy-900/15" />
           </span>
           <span className="text-xs font-medium text-muted">Interactive demo · sample data</span>
+        </div>
+
+        <div role="tablist" aria-label="Mode of transport" className="grid grid-cols-3 gap-1 border-b border-navy-900/10 p-1.5">
+          {MODE_TABS.map(({ mode: m, label, Icon }) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => { setMode(m); setStatus(2); }}
+              className={cn(
+                "inline-flex h-9 items-center justify-center gap-1.5 rounded-md text-sm font-medium transition-colors motion-reduce:transition-none",
+                mode === m ? "bg-navy-900 text-white" : "text-navy-900/70 hover:bg-navy-900/5 hover:text-navy-900",
+              )}
+            >
+              <Icon className="size-4" aria-hidden />{label}
+            </button>
+          ))}
         </div>
 
         <ol className="grid grid-cols-4 border-b border-navy-900/10" aria-label="Demo steps">
@@ -69,10 +94,10 @@ export function FreightDemo() {
               </div>
               <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-2 text-sm">
                 <dt className="text-muted">From</dt><dd>Priya Shah, {DEMO.shipper}</dd>
-                <dt className="text-muted">Mode</dt><dd>Ocean freight</dd>
-                <dt className="text-muted">Route</dt><dd>{DEMO.from} → {DEMO.to}</dd>
-                <dt className="text-muted">Cargo</dt><dd>12 pallets of ceramic floor tiles</dd>
-                <dt className="text-muted">Weight</dt><dd className="tabular-nums">{DEMO.kg} kg</dd>
+                <dt className="text-muted">Mode</dt><dd>{job.inquiryMode}</dd>
+                <dt className="text-muted">Route</dt><dd>{job.from} → {job.to}</dd>
+                <dt className="text-muted">Cargo</dt><dd>{job.cargoLine}</dd>
+                <dt className="text-muted">Weight</dt><dd className="tabular-nums">{job.kg} kg</dd>
                 <dt className="text-muted">Ready</dt><dd>3 November</dd>
               </dl>
               <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
@@ -94,8 +119,8 @@ export function FreightDemo() {
                 <Party label="Consignee" name={DEMO.consignee} addr={DEMO.consigneeAddr} />
               </div>
               <div className="rounded-md bg-[#f1f3f0] p-3 text-sm">
-                <p className="font-medium">12 × Pallet · 120 × 100 × 110 cm</p>
-                <p className="mt-0.5 text-xs text-muted tabular-nums">{DEMO.kg} kg gross · {DEMO.cbm} m³ · HS {DEMO.hs} · Container {DEMO.container}</p>
+                <p className="font-medium">12 × {job.unit} · {job.size}</p>
+                <p className="mt-0.5 text-xs text-muted tabular-nums">{job.kg} kg gross · {job.cbm} m³ · HS {job.hs} · {job.conveyance.join(" · ")}</p>
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
                 <DemoButton onClick={next}>Print documents</DemoButton>
@@ -106,15 +131,15 @@ export function FreightDemo() {
 
           {step === 2 && (
             <div key="docs" className="demo-in flex h-full flex-col gap-4">
-              <p className="text-sm text-muted">Same record, three documents. Each prints or saves as a PDF.</p>
+              <p className="text-sm text-muted">Same record, three documents, worded for the mode you picked. Each prints or saves as a PDF.</p>
               <div className="grid grid-cols-[1fr_1fr_0.72fr] items-end gap-3">
-                <MiniBol />
-                <MiniPackingList />
-                <MiniLabel n={3} />
+                <MiniBol mode={mode} />
+                <MiniPackingList mode={mode} />
+                <MiniLabel n={3} mode={mode} />
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
                 <DemoButton onClick={next}>Track it</DemoButton>
-                <span className="text-xs text-muted">One label per pallet, each with a QR code.</span>
+                <span className="text-xs text-muted">One label per piece, each with a QR code.</span>
               </div>
             </div>
           )}
@@ -139,7 +164,7 @@ export function FreightDemo() {
                       {i < status && <Check className="size-2.5" strokeWidth={3} />}
                     </span>
                     <span className="font-medium">{s}</span>
-                    {i <= status && PLACES[i] && <span className="text-muted"> · {PLACES[i]}</span>}
+                    {i <= status && job.places[i] && <span className="text-muted"> · {job.places[i]}</span>}
                   </li>
                 ))}
               </ol>
