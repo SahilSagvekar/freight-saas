@@ -1,12 +1,30 @@
 import { adminDb } from "@/db";
 import { isPlatformAdmin } from "@/lib/platform-admin";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { adminTwoFactorProblem, adminTwoFactorRequired, hasAdminTwoFactor } from "./admin-2fa";
 import { getAuth } from "./auth";
 
-/** For /admin pages and actions. Anyone else gets a plain 404, so the console's existence isn't advertised. */
-export async function requirePlatformAdmin() {
+/** Signed in as a platform admin, before the second factor. Anyone else gets a plain 404, so the console's existence isn't advertised. */
+export async function requirePlatformAdminPassword() {
   const auth = await getAuth();
   if (!auth || !isPlatformAdmin(auth.email)) notFound();
+  return auth;
+}
+
+/**
+ * For /admin pages and actions: a platform admin who has also entered their authenticator code. Without the code
+ * they are sent to /admin/verify. If two-factor is required but broken or unset (see admin-2fa.ts), the console stays
+ * closed instead of silently running without it.
+ */
+export async function requirePlatformAdmin() {
+  const auth = await requirePlatformAdminPassword();
+  if (!adminTwoFactorRequired()) return auth;
+  const problem = adminTwoFactorProblem();
+  if (problem) {
+    console.error(`admin console is closed: ${problem}`);
+    notFound();
+  }
+  if (!(await hasAdminTwoFactor(auth.userId))) redirect("/admin/verify");
   return auth;
 }
 

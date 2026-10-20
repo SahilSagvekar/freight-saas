@@ -85,11 +85,25 @@ async function applyTicketPayment(event: StripeEvent) {
   if (recorded) await emailTicket(owner.tenantId, bookingId, true).catch((e) => console.error("ticket email failed", e));
 }
 
+/**
+ * Events about OUR subscriptions come from our own Stripe account and never carry `account`. Events from an operator's
+ * connected account do carry it, and an operator controls everything in their own account (they can create a $0
+ * subscription checkout with any client_reference_id). So connected-account events may only ever be ticket payments.
+ */
+const PLATFORM_ONLY_EVENTS = new Set([
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.payment_failed",
+]);
+
 export async function handleStripeEvent(event: StripeEvent): Promise<void> {
   const obj = event.data.object;
+  if (event.account && PLATFORM_ONLY_EVENTS.has(event.type)) return;
   switch (event.type) {
     case "checkout.session.completed": {
       if (obj.mode === "subscription") {
+        if (event.account) return; // a connected account must not be able to grant itself (or anyone) a subscription
         const tenantId = obj.client_reference_id;
         if (typeof tenantId !== "string") return;
         await adminDb().tenant.updateMany({

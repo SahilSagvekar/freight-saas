@@ -40,6 +40,20 @@ describe("subscription events", () => {
     await handleStripeEvent(ev("customer.subscription.updated", { id: "s", customer: row.stripeCustomerId, status: "incomplete" }));
     expect((await tenantRow(t.tenantId)).billingStatus).toBe("trialing");
   });
+
+  it("refuses subscription events that arrive from an operator's connected account", async () => {
+    // An operator controls their own Stripe account, so they could mint a subscription checkout that names any tenant.
+    const t = await makeTenant("Bill");
+    await adminDb().tenant.update({ where: { id: t.tenantId }, data: { billingStatus: "trialing", trialEndsAt: new Date(Date.now() + 86_400_000) } });
+    const connected = `acct_${Math.random().toString(36).slice(2)}`;
+    await handleStripeEvent(ev("checkout.session.completed", { mode: "subscription", client_reference_id: t.tenantId, customer: "cus_forged", subscription: "sub_forged", metadata: { plan: "operator" } }, connected));
+    const afterCheckout = await tenantRow(t.tenantId);
+    expect(afterCheckout.billingStatus).toBe("trialing");
+    expect(afterCheckout.stripeCustomerId).toBeNull();
+
+    await handleStripeEvent(ev("customer.subscription.created", { id: "sub_forged", customer: "cus_forged", status: "active", metadata: { tenantId: t.tenantId, plan: "operator" } }, connected));
+    expect((await tenantRow(t.tenantId)).billingStatus).toBe("trialing");
+  });
 });
 
 describe("ticket payments", () => {

@@ -1,10 +1,11 @@
 "use server";
 
-import { headers, cookies } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { SESSION_COOKIE, sessionCookieOptions, signSession } from "@/lib/session";
 import { signChoiceToken, verifyChoiceToken } from "@/lib/tokens";
+import { clientIp } from "@/server/client-ip";
 import { authenticateUser } from "@/server/credentials";
 import { clearThrottle, throttle } from "@/server/throttle";
 
@@ -30,12 +31,16 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const email = String(formData.get("email") ?? "");
   if (!parsed.success) return { error: "Enter your email and password.", email };
 
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const key = `login:${ip}:${parsed.data.email.toLowerCase()}`;
+  const ip = await clientIp();
+  const normalizedEmail = parsed.data.email.toLowerCase();
+  const key = `login:${ip}:${normalizedEmail}`;
+  // Two limits. The first stops one address hammering one account. The second has no address in it at all, so it still
+  // holds when an attacker rotates addresses: whoever they come from, one account only ever gets this many guesses an
+  // hour. The trade-off is that someone can briefly lock a known email out of sign-in, which beats a guessed password.
   const limited = await throttle(key, 8, 15 * 60 * 1000);
-  if (!limited.allowed) {
-    return { error: `Too many attempts. Try again in ${Math.ceil(limited.retryAfterSeconds / 60)} minute(s).`, email };
+  const limitedAnywhere = limited.allowed ? await throttle(`login-email:${normalizedEmail}`, 30, 60 * 60 * 1000) : limited;
+  if (!limitedAnywhere.allowed) {
+    return { error: `Too many attempts. Try again in ${Math.ceil(limitedAnywhere.retryAfterSeconds / 60)} minute(s).`, email };
   }
 
   const result = await authenticateUser(parsed.data.email, parsed.data.password);

@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { clientIpFrom } from "@/lib/client-ip";
 import { captureException, cleanPath } from "@/lib/monitor";
 import { throttle } from "@/server/throttle";
 
 /** Receives errors from browsers and forwards them. Small, capped and throttled, since anyone can call it. */
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  const ip = clientIpFrom((name) => request.headers.get(name));
   if (!(await throttle(`client-error:${ip}`, 20, 10 * 60 * 1000)).allowed) return new NextResponse(null, { status: 429 });
   let body: { message?: unknown; stack?: unknown; path?: unknown };
   try {

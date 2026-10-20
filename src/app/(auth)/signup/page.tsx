@@ -1,4 +1,5 @@
 import { PLANS } from "@/lib/plans";
+import { turnstileSiteKey } from "@/server/turnstile";
 import { AuthShell } from "../auth-shell";
 import { SignupForm } from "./signup-form";
 
@@ -9,7 +10,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
   const initial = PLANS.find((p) => p.id === plan)?.id ?? PLANS[0]!.id;
   return (
     <AuthShell title="Create your workspace" subtitle="No card needed. Most teams are set up in an afternoon.">
-      <SignupForm initialPlan={initial} />
+      <SignupForm initialPlan={initial} captchaSiteKey={turnstileSiteKey()} />
     </AuthShell>
   );
 }

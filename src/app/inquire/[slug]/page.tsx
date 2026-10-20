@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadInquiryOperator } from "@/server/inquiries";
+import { turnstileSiteKey } from "@/server/turnstile";
 import { InquiryForm } from "./inquiry-form";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function InquiryPage({ params }: PageProps<"/inquire/[slug]
       <div className="mx-auto max-w-xl">
         <h1 className="text-xl font-semibold tracking-tight text-ink">Request a quote</h1>
         <p className="mb-5 mt-1 text-sm text-muted">Tell {op.name} what you need to ship and we&apos;ll get back to you.</p>
-        <InquiryForm slug={slug} />
+        <InquiryForm slug={slug} captchaSiteKey={turnstileSiteKey()} />
       </div>
     </main>
   );

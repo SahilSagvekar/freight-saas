@@ -11,6 +11,19 @@ describe("production env check", () => {
     expect(productionEnvProblems({ ...good, APP_URL: "http://x.com" })[0]).toMatch(/https/);
     expect(productionEnvProblems({ ...good, ADMIN_DATABASE_URL: good.DATABASE_URL })[0]).toMatch(/same/);
   });
+
+  it("wants both Turnstile keys or neither", () => {
+    expect(productionEnvProblems({ ...good, TURNSTILE_SITE_KEY: "site", TURNSTILE_SECRET_KEY: "secret" })).toEqual([]);
+    expect(productionEnvProblems({ ...good, TURNSTILE_SITE_KEY: "site" })[0]).toMatch(/together/);
+    expect(productionEnvProblems({ ...good, TURNSTILE_SECRET_KEY: "secret" })[0]).toMatch(/together/);
+  });
+
+  it("wants a working two-factor secret whenever platform admins are listed", () => {
+    expect(productionEnvProblems({ ...good, PLATFORM_ADMIN_EMAILS: "me@example.com" })[0]).toMatch(/two-factor/);
+    expect(productionEnvProblems({ ...good, PLATFORM_ADMIN_EMAILS: "me@example.com", PLATFORM_ADMIN_TOTP_SECRET: "0189" })[0]).toMatch(/base32/);
+    expect(productionEnvProblems({ ...good, PLATFORM_ADMIN_EMAILS: "me@example.com", PLATFORM_ADMIN_TOTP_SECRET: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" })).toEqual([]);
+    expect(productionEnvProblems({ ...good, PLATFORM_ADMIN_EMAILS: "  " })).toEqual([]);
+  });
 });
 
 describe("error reporting", () => {

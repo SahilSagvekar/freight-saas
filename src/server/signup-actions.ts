@@ -1,16 +1,17 @@
 "use server";
 
-import { headers } from "next/headers";
 import { z } from "zod";
 import { welcomeEmail } from "@/lib/email-templates";
 import { planById, TRIAL_DAYS } from "@/lib/plans";
 import { regionByCode } from "@/lib/regions";
 import { SETUP_LINK_TTL_HOURS } from "@/lib/tokens";
 import { appBaseUrl } from "./base-url";
+import { clientIp } from "./client-ip";
 import { mailConfigured, sendMail } from "./mail";
 import { provisionTenant } from "./provision";
 import { issueSetupLink } from "./setup-links";
 import { throttle } from "./throttle";
+import { checkCaptcha } from "./turnstile";
 
 /** `emailFailed` means the workspace exists but the provider did not accept the message, so nobody has a link yet. */
 export type SignupState = { error?: string; done?: { email: string; emailed: boolean; link?: string; emailFailed?: boolean } };
@@ -34,12 +35,15 @@ export async function signupAction(_prev: SignupState, f: FormData): Promise<Sig
   // Without email we can't confirm the address belongs to the person, so live sign-ups stay closed until it is set up.
   if (process.env.NODE_ENV === "production" && !mail && process.env.ALLOW_UNVERIFIED_SIGNUP !== "1") return { error: "Sign-ups aren't open yet. Please contact us and we'll set you up." };
 
+  const ip = await clientIp();
+  // Sign-up must never run without a CAPTCHA in production: it creates workspaces and sends email.
+  const captcha = await checkCaptcha(f, ip, { required: true });
+  if (!captcha.ok) return { error: captcha.error };
+
   const parsed = schema.safeParse({ operator: f.get("operator"), name: f.get("name"), email: f.get("email"), region: f.get("region"), plan: f.get("plan"), kind: f.get("kind") ?? "freight", terms: f.get("terms") });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
   const d = parsed.data;
 
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   if (!(await throttle(`signup:${ip}`, 5, 60 * 60 * 1000)).allowed || !(await throttle(`signup-email:${d.email}`, 3, 24 * 60 * 60 * 1000)).allowed) {
     return { error: "Too many sign-up attempts. Please try again later." };
   }

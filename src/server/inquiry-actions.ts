@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { withTenant } from "@/db";
@@ -8,10 +7,12 @@ import { INQUIRY_STATUSES, type InquiryStatus } from "@/lib/domain";
 import { parseEmails } from "@/lib/email-list";
 import { inquirySchema } from "@/lib/schemas";
 import { requireWrite } from "./auth";
+import { clientIp } from "./client-ip";
 import type { ActionResult } from "./booking-actions";
 import { createInquiry, loadInquiryOperator, notifyInquiry, setInquiryNotes, setInquiryStatus } from "./inquiries";
 import { setTenantSetting } from "./shared";
 import { throttle } from "./throttle";
+import { checkCaptcha } from "./turnstile";
 
 export type InquiryFormState = { error?: string; fields?: Record<string, string>; done?: { message: string } };
 
@@ -37,8 +38,9 @@ export async function submitInquiryAction(slug: string, _prev: InquiryFormState,
     return { error: parsed.error.issues[0]?.message ?? "Check the form and try again.", fields };
   }
 
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  const ip = await clientIp();
+  const captcha = await checkCaptcha(form, ip);
+  if (!captcha.ok) return { error: captcha.error };
   if (!(await throttle(`inquiry:${op.id}:${ip}`, 5, 60 * 60 * 1000)).allowed) return { error: "Too many requests from this connection. Please try again later." };
   if (!(await throttle(`inquiry-day:${op.id}`, 300, 24 * 60 * 60 * 1000)).allowed) return { error: "This form is receiving a lot of requests right now. Please email us instead." };
 

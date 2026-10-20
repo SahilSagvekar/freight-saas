@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminDb } from "@/db";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
@@ -9,6 +9,7 @@ import { resetEmail } from "@/lib/email-templates";
 import { SETUP_LINK_TTL_HOURS } from "@/lib/tokens";
 import { requireAuth } from "./auth";
 import { appBaseUrl } from "./base-url";
+import { clientIp } from "./client-ip";
 import { sendMail, mailConfigured } from "./mail";
 import { issueSetupLink } from "./setup-links";
 import { throttle } from "./throttle";
@@ -49,8 +50,7 @@ export type ForgotState = { done?: boolean; error?: string; emailConfigured?: bo
 export async function forgotPasswordAction(_prev: ForgotState, f: FormData): Promise<ForgotState> {
   const email = String(f.get("email") ?? "").trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Enter the email you sign in with." };
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  const ip = await clientIp();
   if (!(await throttle(`forgot:${ip}`, 5, 15 * 60 * 1000)).allowed || !(await throttle(`forgot-email:${email}`, 3, 60 * 60 * 1000)).allowed) {
     return { error: "Too many requests. Try again in a little while." };
   }

@@ -1,12 +1,12 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminDb, withTenant } from "@/db";
 import { createBookingSchema } from "@/lib/schemas";
 import { readTicketCode, ticketCode } from "@/lib/ticket-code";
 import type { ActionResult } from "./booking-actions";
 import { appBaseUrl } from "./base-url";
+import { clientIp } from "./client-ip";
 import { BookingError, createBooking } from "./bookings";
 import { emailTicket, expireUnpaidHolds, loadPublicOperator } from "./public-booking";
 import { formatBookingNo, getTenantConfig } from "./shared";
@@ -51,8 +51,7 @@ export async function createPublicBookingAction(slug: string, raw: unknown): Pro
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
   if (!parsed.data.contactEmail) return { ok: false, error: "Enter your email so we can send your ticket." };
 
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  const ip = await clientIp();
   if (!(await throttle(`public-book:${op.id}:${ip}`, 10, 60 * 60 * 1000)).allowed) return { ok: false, error: "Too many bookings from this connection. Please try again later." };
 
   await expireUnpaidHolds({ tenantId: op.id });

@@ -4,10 +4,11 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { TurnstileField } from "@/components/turnstile-field";
 import { MODE_LABELS, TRANSPORT_MODES } from "@/lib/domain";
 import { submitInquiryAction, type InquiryFormState } from "@/server/inquiry-actions";
 
-export function InquiryForm({ slug }: { slug: string }) {
+export function InquiryForm({ slug, captchaSiteKey }: { slug: string; captchaSiteKey?: string }) {
   const [state, action] = useActionState<InquiryFormState, FormData>(submitInquiryAction.bind(null, slug), {});
   const err = (k: string) => state.fields?.[k];
 
@@ -45,6 +46,7 @@ export function InquiryForm({ slug }: { slug: string }) {
       <Field label="Anything else we should know?" htmlFor="message" hint="Optional" error={err("message")}><Textarea id="message" name="message" maxLength={2000} rows={3} /></Field>
       {/* Bots fill this in; people never see it. */}
       <div aria-hidden className="absolute -left-[9999px]"><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
+      <TurnstileField siteKey={captchaSiteKey} resetSignal={state} />
       <SubmitButton size="lg" className="w-full" pendingText="Sending…">Send request</SubmitButton>
     </form>
   );

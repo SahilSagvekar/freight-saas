@@ -5,11 +5,12 @@ import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Checkbox, Field, Input, Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { TurnstileField } from "@/components/turnstile-field";
 import { PLANS } from "@/lib/plans";
 import { REGIONS } from "@/lib/regions";
 import { signupAction, type SignupState } from "@/server/signup-actions";
 
-export function SignupForm({ initialPlan }: { initialPlan: string }) {
+export function SignupForm({ initialPlan, captchaSiteKey }: { initialPlan: string; captchaSiteKey?: string }) {
   const [state, action] = useActionState<SignupState, FormData>(signupAction, {});
   // Freight workspaces join the free pilot, so the paid plans only show for ferry sign-ups.
   const [kind, setKind] = useState<"freight" | "ferry">("freight");
@@ -71,6 +72,7 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
       <div aria-hidden className="absolute -left-[9999px]"><label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
       <Checkbox name="terms" label="I agree to the terms and privacy policy" required />
       <p className="-mt-2 text-xs text-muted"><Link href="/terms" target="_blank" className="underline">Terms</Link> · <Link href="/privacy" target="_blank" className="underline">Privacy</Link></p>
+      <TurnstileField siteKey={captchaSiteKey} resetSignal={state} />
       <SubmitButton size="lg" className="w-full" pendingText="Creating your workspace…">Create my workspace</SubmitButton>
       <p className="text-center text-sm text-muted">Already have an account? <Link href="/login" className="font-medium text-brand-700 hover:underline">Sign in</Link></p>
     </form>
