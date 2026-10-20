@@ -9,7 +9,7 @@
 | `SESSION_SECRET` | yes | 32+ random characters. `openssl rand -base64 48` |
 | `APP_URL` | yes | Public `https://` address. Used in one-time links and emails. |
 | `SENTRY_DSN` | no | Turns on error reporting. Works with Sentry or GlitchTip. |
-| `RESEND_API_KEY`, `MAIL_FROM` | no | Turns on email (invites, password reset). Without them, links are shown on screen. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | no | Turns on email (invites, password reset) over SMTP. `SMTP_HOST` and `MAIL_FROM` are the minimum; port defaults to 587. Without them, links are shown on screen. |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` | no | Turns on subscription billing. |
 | `PLATFORM_ADMIN_EMAILS` | no | Comma-separated emails allowed into `/admin`. |
 
@@ -85,7 +85,7 @@ Set `PLATFORM_ADMIN_EMAILS` to your email. Sign in normally with that email and 
 
 ## When a setup email doesn't arrive
 
-If sending fails, the server logs `mail: provider refused <status> <Resend's message>` (or `mail: send failed`). A `403`/`422` usually means `MAIL_FROM` uses a domain you haven't verified in Resend; `401` means a wrong `RESEND_API_KEY`. To try it without redeploying, set `RESEND_API_KEY` and `MAIL_FROM` in your terminal and run `npm run mail:test -- --to you@example.com`; it prints Resend's exact answer. After fixing it, the person can use "Forgot password" on the sign-in page. To hand someone a link directly:
+If sending fails, the server logs `mail: send failed <the mail server's reply>`. Typical causes: a wrong `SMTP_USER`/`SMTP_PASS` (most providers need an app password, not your normal one), a wrong port (587 for STARTTLS, 465 with `SMTP_SECURE=true`), or a `MAIL_FROM` your provider doesn't allow (use the address you log in with). To try it without redeploying, set the `SMTP_*` variables and `MAIL_FROM` in your terminal and run `npm run mail:test -- --to you@example.com`; it prints the server's exact answer. After fixing it, the person can use "Forgot password" on the sign-in page. To hand someone a link directly:
 
 ```bash
 npm run owner:link -- --email maya@example.com    # needs ADMIN_DATABASE_URL, SESSION_SECRET and APP_URL set
@@ -95,7 +95,7 @@ The link works once and expires in 72 hours. Sign-up never shows the link on scr
 
 ## Sign-ups
 
-`/signup` creates an operator on a 14-day trial and emails the owner a link to choose a password. In production it stays **closed unless email is configured** (`RESEND_API_KEY`, `MAIL_FROM`), because without email the address can't be verified. `ALLOW_UNVERIFIED_SIGNUP=1` overrides that; don't, unless you accept anyone can create a workspace under any address. There is no CAPTCHA yet: a hidden honeypot field and per-IP/email throttles are the only bot protection.
+`/signup` creates an operator on a 14-day trial and emails the owner a link to choose a password. In production it stays **closed unless email is configured** (`SMTP_HOST`, `MAIL_FROM`), because without email the address can't be verified. `ALLOW_UNVERIFIED_SIGNUP=1` overrides that; don't, unless you accept anyone can create a workspace under any address. There is no CAPTCHA yet: a hidden honeypot field and per-IP/email throttles are the only bot protection.
 
 ## More environment variables
 
