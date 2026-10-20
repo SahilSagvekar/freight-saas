@@ -40,7 +40,10 @@ export async function signupAction(_prev: SignupState, f: FormData): Promise<Sig
 
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (!(await throttle(`signup:${ip}`, 5, 60 * 60 * 1000)).allowed || !(await throttle(`signup-email:${d.email}`, 3, 24 * 60 * 60 * 1000)).allowed) {
+  // The limit protects the live site from bots using it to send email. It is off while developing and testing,
+  // and SIGNUP_THROTTLE=off turns it off elsewhere (a demo or pilot), at the cost of that protection.
+  const limited = process.env.NODE_ENV === "production" && process.env.SIGNUP_THROTTLE !== "off";
+  if (limited && (!(await throttle(`signup:${ip}`, 5, 60 * 60 * 1000)).allowed || !(await throttle(`signup-email:${d.email}`, 3, 24 * 60 * 60 * 1000)).allowed)) {
     return { error: "Too many sign-up attempts. Please try again later." };
   }
 
