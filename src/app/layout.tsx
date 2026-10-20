@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Harborline", template: "%s · Harborline" },
-  description: "Booking and manifests for ferry and freight operators.",
+  description: "Freight forwarding software for small teams: inquiries, quotes, shipments, documents, tracking and invoices.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

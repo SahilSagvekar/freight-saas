@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Checkbox, Field, Input, Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -11,6 +11,8 @@ import { signupAction, type SignupState } from "@/server/signup-actions";
 
 export function SignupForm({ initialPlan }: { initialPlan: string }) {
   const [state, action] = useActionState<SignupState, FormData>(signupAction, {});
+  // Freight workspaces join the free pilot, so the paid plans only show for ferry sign-ups.
+  const [kind, setKind] = useState<"freight" | "ferry">("freight");
   if (state.done) {
     return (
       <div className="space-y-4">
@@ -35,17 +37,17 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
   return (
     <form action={action} className="space-y-4">
       {state.error && <Alert tone="error">{state.error}</Alert>}
-      <Field label="Company name" htmlFor="operator"><Input id="operator" name="operator" required maxLength={80} autoFocus placeholder="e.g. Blue Lagoon Ferries" /></Field>
+      <Field label="Company name" htmlFor="operator"><Input id="operator" name="operator" required maxLength={80} autoFocus placeholder="e.g. Coastline Freight Ltd" /></Field>
       <Field label="Your name" htmlFor="name"><Input id="name" name="name" required maxLength={80} autoComplete="name" /></Field>
       <Field label="Work email" htmlFor="email"><Input id="email" name="email" type="email" required autoComplete="email" /></Field>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">What does your company do?</legend>
         <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-3 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
-          <input type="radio" name="kind" value="freight" defaultChecked className="accent-brand-600" />
+          <input type="radio" name="kind" value="freight" defaultChecked onChange={() => setKind("freight")} className="accent-brand-600" />
           <span><span className="font-medium">Freight forwarding</span> <span className="text-muted">· inquiries, quotes, shipments and documents</span></span>
         </label>
         <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-3 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
-          <input type="radio" name="kind" value="ferry" className="accent-brand-600" />
+          <input type="radio" name="kind" value="ferry" onChange={() => setKind("ferry")} className="accent-brand-600" />
           <span><span className="font-medium">Ferry or passenger boat</span> <span className="text-muted">· tickets and manifests</span></span>
         </label>
       </fieldset>
@@ -55,7 +57,8 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           {REGIONS.map((r) => <option key={r.code} value={r.code}>{r.name} · {r.currency}</option>)}
         </Select>
       </Field>
-      <fieldset className="space-y-2">
+      {kind === "freight" && <input type="hidden" name="plan" value={initialPlan} />}
+      <fieldset className="space-y-2" hidden={kind === "freight"} disabled={kind === "freight"}>
         <legend className="text-sm font-medium">Plan</legend>
         {PLANS.map((p) => (
           <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-line p-3 text-sm has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">

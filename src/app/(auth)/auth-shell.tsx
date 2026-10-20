@@ -1,4 +1,4 @@
-import { Anchor } from "lucide-react";
+import { Package } from "lucide-react";
 import type { ReactNode } from "react";
 import { APP_NAME } from "@/lib/utils";
 
@@ -8,14 +8,14 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
     <main className="grid min-h-screen lg:grid-cols-[1fr_28rem]">
       <section className="relative hidden overflow-hidden bg-navy-900 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="flex items-center gap-2.5 text-lg font-semibold">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-brand-500"><Anchor className="size-5" aria-hidden /></span>
+          <span className="flex size-9 items-center justify-center rounded-lg bg-brand-500"><Package className="size-5" aria-hidden /></span>
           {APP_NAME}
         </div>
         <div className="max-w-md">
-          <h2 className="text-3xl font-semibold leading-tight tracking-tight">Passengers, vehicles and cargo — one booking, one manifest.</h2>
-          <p className="mt-4 text-brand-200">Sell at the ticket desk even when the signal drops. Everything syncs when you&apos;re back online.</p>
+          <h2 className="text-3xl font-semibold leading-tight tracking-tight">Type the job once. Every document follows.</h2>
+          <p className="mt-4 text-brand-200">Inquiries, quotes, shipments, Bills of Lading, labels, tracking and invoices, all from one record.</p>
         </div>
-        <p className="text-sm text-brand-300/70">Built for ferry and freight operators.</p>
+        <p className="text-sm text-brand-300/70">Built for freight forwarders.</p>
         <div aria-hidden className="pointer-events-none absolute -bottom-40 -right-40 size-[28rem] rounded-full bg-brand-500/15" />
       </section>
       <section className="flex items-center justify-center px-6 py-12">
