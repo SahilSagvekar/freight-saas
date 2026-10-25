@@ -5,6 +5,7 @@
  *   Git Bash:  export SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USER=you@gmail.com SMTP_PASS="app password"
  *              export MAIL_FROM="Harborline <you@gmail.com>"
  *              npm run mail:test -- --to you@example.com
+ * test
  *
  * It sends a real email, so use your own address. The password is never printed.
  */
