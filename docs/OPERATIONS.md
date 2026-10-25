@@ -109,3 +109,42 @@ The link works once and expires in 72 hours. Sign-up never shows the link on scr
 ## The demo site
 
 Run a **second deployment with its own database** and seed it there (`npm run seed` is refused on any non-local database unless you set the explicit demo flags, see the README). Point `DEMO_URL` at it. Never share a database between demo and live.
+
+## Automatic deploys (push to `main` goes live)
+
+`.github/workflows/ci.yml` runs lint, typecheck, tests and a build on every push and pull request. For pushes to
+`main` that pass, a second job connects to the server over SSH and runs `scripts/deploy.sh`, which:
+
+1. fetches the exact commit that was tested and resets the server checkout to it,
+2. runs `npm ci` and `npm run build`,
+3. applies database migrations (`src/db/migrate.ts`, using `.env`),
+4. reloads the app with `pm2 reload`, then waits for `/api/health` to answer.
+
+If any step fails, the previous code is rebuilt and reloaded and the GitHub job fails. Database changes are not
+undone, so write migrations that old code can live with (add columns and tables; do not rename or drop in the same release).
+
+### One-time setup
+
+On the server (as the user that owns `~/freight-saas`):
+
+```bash
+ssh-keygen -t ed25519 -N "" -C "github-deploy" -f ~/.ssh/gh_deploy
+# Lock the key to the deploy script: it can run nothing else.
+echo "command=\"/bin/bash $HOME/freight-saas/scripts/deploy.sh\",no-port-forwarding,no-agent-forwarding,no-pty,no-X11-forwarding $(cat ~/.ssh/gh_deploy.pub)" >> ~/.ssh/authorized_keys
+cat ~/.ssh/gh_deploy                     # copy this private key into the DEPLOY_SSH_KEY secret, then:
+shred -u ~/.ssh/gh_deploy ~/.ssh/gh_deploy.pub
+echo "SERVER_IP $(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"   # DEPLOY_KNOWN_HOSTS value
+```
+
+In GitHub: Settings → Environments → New environment `production` (optionally add yourself as a required reviewer
+to approve each deploy), then add these **environment secrets**:
+
+| Secret | Value |
+| --- | --- |
+| `DEPLOY_HOST` | the server's IP address |
+| `DEPLOY_USER` | the SSH user that owns `~/freight-saas` |
+| `DEPLOY_SSH_KEY` | the private key printed above, including the BEGIN and END lines |
+| `DEPLOY_KNOWN_HOSTS` | the `SERVER_IP ssh-ed25519 AAAA...` line printed above |
+
+Deploy by hand with `bash scripts/deploy.sh` (add `FORCE=1` to redeploy the same commit). The log is `~/deploy.log`.
+To stop automatic deploys, delete the `deploy` job or disable the workflow in the Actions tab.
